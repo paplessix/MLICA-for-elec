@@ -1,0 +1,26 @@
+{   "grid" :   {
+    
+        "maxload": 7
+    },
+    
+    "consumption" : {
+        "max_consumption": 10,
+        "cost_of_non_served_energy": 10000
+    },
+    "generation" : {
+        "max_generation" : 10, 
+        "type" : "solar"
+    },
+    "battery": {
+        "enabled": false,
+        "fcr_enabled":false,
+        "power" : 3, 
+        "duration" : 4, 
+        "rte" :  0.88,
+        "max_soc" : 1,
+        "min_soc" : 0.2,
+        "init_soc":0.5,
+        "soc_fcr":0.5
+
+    }
+}
