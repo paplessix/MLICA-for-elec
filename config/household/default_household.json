@@ -5,7 +5,7 @@
     
     "consumption" : {
         "max_consumption": 10,
-        "cost_of_non_served_energy": 10000
+        "cost_of_non_served_energy": 10
     },
     "generation" : {
         "max_generation" : 10, 
