@@ -6,12 +6,15 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pyomo.environ import *
+
 @dataclass
 class Order(object):   
     CreatorID: int   
     Side: bool  
     Quantity: int   
     Price: int  
+    TimeSlot: int
 
 
 @dataclass  
@@ -35,6 +38,7 @@ class Market(object):
         self.Offers: List[Order] = []
         self.Matches: List[Match] = []
         self.Gate_open = True
+        self.payments = {}
 
     def AddOrder(self, order: Order):
         if order.Side:
@@ -43,11 +47,14 @@ class Market(object):
             self.Bids.append(order)
     
     def close_gate(self):
-        self.Offers = sorted(self.Offers, key=lambda x: x.Price)
+        self.Offers = sorted(self.Offers, key=lambda x: x.Price, reverse=True)
         self.Participants = set(list(map(lambda x: x.CreatorID, self.Offers)))
+        self.TimeSlots = sorted(list(set(list(map(lambda x: x.TimeSlot, self.Offers)))))
         self.Gate_open = False
+        self.N_part = len(self.Participants)
 
 
+    
     def plot_orders(self):
         if self.Gate_open:
             print("Gate is open, please close it before plotting")
@@ -68,52 +75,85 @@ class Market(object):
             fill = True)
         plt.show()
 
+    # Allocation Rules 
+    # Goal Maximizing social welfare
 
-    def maximize_SW(self,ordered_offers,qtty_cleared):
-        cumulative_quantity = 0
-        clearing_price = ordered_offers[0].Price
-        accepted_bids = []
-        n=0
-        qtty_cleared = qtty_cleared
-        while cumulative_quantity < qtty_cleared:
-            if ordered_offers[n].Quantity > qtty_cleared - cumulative_quantity:
-                accepted_qtty = qtty_cleared - cumulative_quantity
-            else:
-                accepted_qtty = ordered_offers[n].Quantity
-            new_offer = Order(CreatorID=ordered_offers[n].CreatorID, Side=True, Quantity=accepted_qtty, Price=ordered_offers[n].Price)
-            cumulative_quantity += accepted_qtty
-            clearing_price = ordered_offers[n].Price
-            accepted_bids.append(new_offer)
-            n+=1
-        return clearing_price, accepted_bids
+    def dispatch(self, offers, grid_constraint):
+        
+        self.market_model = ConcreteModel()
+        self.market_model.dual = Suffix(direction=Suffix.IMPORT)
+        N = len(offers)
+        K = len(self.Participants)
+        self.market_model.Bids = RangeSet(0,N-1)
+        self.market_model.participants_set = Set(initialize = sorted(list(self.Participants)))
+        
+        self.market_model.Prices = Param(self.market_model.Bids,initialize = list(map(lambda x: x.Price, offers)))
+        self.market_model.Quantities = Param(self.market_model.Bids,initialize = np.array(list(map(lambda x: x.Quantity, offers))))
+        self.market_model.Participants = Param(self.market_model.Bids,initialize = np.array(list(map(lambda x: x.CreatorID, offers))))
+        
+        self.market_model.is_awarded_bid = Var(self.market_model.Bids, initialize=0,within=Binary)
 
+        # Objective rule 
+        def objective_rule(model):
+            return sum_product(model.Prices, model.is_awarded_bid) - 5*sum_product(model.Quantities,model.is_awarded_bid)
+        
+        # Constraint rules
 
+        def one_bid_per_participant_rule(model, part):
+            return sum([model.is_awarded_bid[i] for i in range(N) if model.Participants[i] == part]) <= 1
+        
+        def limit_qtty_rule(model):
+            return sum_product(model.Quantities, model.is_awarded_bid) <= grid_constraint
+        # Solve model
+
+        self.market_model.obj = Objective(rule = objective_rule, sense = maximize)
+        # self.market_model.one_bid_cons = Constraint(self.market_model.participants_set, rule = one_bid_per_participant_rule)
+        self.market_model.limit_qtty_cons = Constraint(rule = limit_qtty_rule)
+        opt = SolverFactory("glpk", executable="solver\glpk\glpsol.exe")
+        opt.solve(self.market_model)
+        # unpack results
+
+        awarded_bids = []
+        for i in range(N):
+            if self.market_model.is_awarded_bid[i].value == 1:
+                # print(offers[i].CreatorID, offers[i].Price, offers[i].Quantity)
+                awarded_bids.append(offers[i])
+        clearing_price = awarded_bids[-1].Price
+        return clearing_price , awarded_bids
+    
     def ClearMarket(self, qtty_cleared):
         if self.Gate_open:
             print("Gate is open, please close it before clearing")
             raise TypeError
-        self.clearing_price, self.accepted_bids = self.maximize_SW(self.Offers,qtty_cleared)
+        self.clearing_price, self.accepted_bids = self.dispatch(self.Offers, qtty_cleared)
         self.sw_global = self.compute_social_welfare( self.accepted_bids, self.clearing_price)
         self.qtty_cleared = qtty_cleared
         return self.clearing_price, self.accepted_bids
     
     def compute_social_welfare(self, accepted_offers, clearing_price):
         return np.dot(np.array(list(map(lambda x: x.Quantity, accepted_offers))), clearing_price - np.array(list(map(lambda x: x.Price,accepted_offers))))
-    
-    def compute_VCG_prices(self):
-        if self.Gate_open:
-            print("Gate is open, please close it before clearing")
-            raise TypeError
-        self.VCG_payments={}
-        self.SW_without_participant={}
-        for participant in self.Participants:
-            filtered_offers = list(filter(lambda x: x.CreatorID != participant, self.Offers))
-            clearing_price_without_participant, accepted_offers_without_participant = self.maximize_SW(filtered_offers,self.qtty_cleared)
-            sw_without_participant= self.compute_social_welfare(accepted_offers_without_participant, clearing_price_without_participant)
-            sw_participant= self.compute_social_welfare(list(filter(lambda x: x.CreatorID == participant, self.accepted_bids)), self.clearing_price)
-            self.VCG_payments[participant] = -sw_without_participant + (self.sw_global - sw_participant)
-            self.SW_without_participant[participant] = sw_without_participant
 
+    # Payments rules 
+
+
+    def LMP_payments(self):
+        self.payments["LMP"] = {}
+        for part in self.Participants:
+            self.payments["LMP"][part] = self.clearing_price* sum(map(lambda x: x.Quantity, filter(lambda x: x.CreatorID == part, self.accepted_bids)))
+        return self.payments["LMP"]
+
+    def VCG_payments(self): 
+        self.payments["VCG"] = {}
+        self.SW_without_participant={}
+        for part in self.Participants:
+            filtered_offers = list(filter(lambda x: x.CreatorID != part, self.Offers))
+            clearing_price_without_participant, accepted_offers_without_participant = self.dispatch(filtered_offers,self.qtty_cleared)
+            sw_without_participant= self.compute_social_welfare(accepted_offers_without_participant, clearing_price_without_participant)
+            sw_participant= self.compute_social_welfare(list(filter(lambda x: x.CreatorID == part, self.accepted_bids)), 0)
+            self.payments["VCG"][part] = -sw_without_participant + (self.sw_global - sw_participant)
+            self.SW_without_participant[part] = sw_without_participant
+        return self.payments["VCG"]
+    
         
     
     def plot_clearing(self):
@@ -126,6 +166,27 @@ class Market(object):
         plt.legend()
         plt.show()
 
+
+    def plot_clearing_per_participant(self):
+        for part in self.Participants:
+            plt.plot( np.cumsum(list(map(lambda x:x.Quantity,filter(lambda x:x.CreatorID == part,self.Offers)))),[x.Price for x in filter(lambda x:x.CreatorID == part,self.Offers)], color="red", drawstyle = "steps", alpha = 0.1)
+            plt.plot( np.cumsum(list(map(lambda x:x.Quantity,filter(lambda x:x.CreatorID == part,self.accepted_bids)))),[x.Price for x in filter(lambda x:x.CreatorID == part,self.accepted_bids)],drawstyle = "steps",label=part)
+        plt.axvline(self.qtty_cleared, color="blue", linestyle="--",label="Quantity Cleared")
+        plt.axhline(self.clearing_price, color="black", linestyle="--", label="Clearing Price")
+        plt.xlabel("Quantity")
+        plt.ylabel("Price")
+        plt.legend()
+        plt.show()
+
+    def plot_payments(self):
+        width = 0.3 
+        plt.bar(np.arange(self.N_part), list(self.payments["VCG"].values()),width, color="red", label="VCG")
+        plt.bar(np.arange(width,self.N_part+width), list(self.payments["LMP"].values()),width, color="blue", label="LMP")
+        plt.xlabel("Participant")
+        plt.ylabel("Payment")
+        plt.legend()
+        plt.show()
+
     def report_clearing(self):
         print("Clearing Price: ", self.clearing_price)
         print("Quantity Cleared: ", self.qtty_cleared)
@@ -135,15 +196,15 @@ class Market(object):
             
             print(f"                  / Social Welfare part: ", self.compute_social_welfare(list(filter(lambda x:x.CreatorID == part,self.accepted_bids)), self.clearing_price))
             print(f"                  / Social Welfare wo/ part: ", self.SW_without_participant[part])
-            print(f"                  / VCG Price: ", self.VCG_payments[part]," / ", self.VCG_payments[part]/sum(map(lambda x: x.Quantity, filter(lambda x: x.CreatorID == part, self.accepted_bids))), " per unit")
-            print(f"                  / Pay as clear: ", self.clearing_price* sum(map(lambda x: x.Quantity, filter(lambda x: x.CreatorID == part, self.accepted_bids))), " / ", self.clearing_price, " per unit")
+            print(f"                  / VCG Price: ", self.payments["VCG"][part]," / ", self.payments["VCG"][part]/sum(map(lambda x: x.Quantity, filter(lambda x: x.CreatorID == part, self.accepted_bids))), " per unit")
+            print(f"                  / Pay as clear: ", self.payments["LMP"][part], " / ", self.clearing_price, " per unit")
 
 if __name__ == "__main__":
     # Create market instance and test orders   
     market = Market()
     for i in range(3):
         for j in range(20):
-            sellOrder = Order(CreatorID=i, Side=True, Quantity=np.random.randint(1,20), Price=np.random.randint(1,20)) 
+            sellOrder = Order(CreatorID=i, Side=True, TimeSlot=1, Quantity=1, Price=  np.random.randint(1,40)) 
             market.AddOrder(sellOrder)      
 
     # Send orders to market   
@@ -151,10 +212,11 @@ if __name__ == "__main__":
     market.AddOrder(sellOrder)  
     market.close_gate()
     market.plot_orders()
-    # Clear Market  
-    market.ClearMarket(300)
-    market.compute_VCG_prices()
-    # Get the clearing price  
+    
+    market.ClearMarket(40)
+    market.LMP_payments()
+    market.VCG_payments()
     market.report_clearing()
     market.plot_clearing()
-    # returns 9  
+    market.plot_clearing_per_participant()
+    market.plot_payments()
