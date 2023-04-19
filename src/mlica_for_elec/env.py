@@ -4,6 +4,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from mlica_for_elec.util import *
 from pyomo.environ import *
+import pyomo.kernel as pmo
 from pyutilib.services import register_executable, registered_executable
 register_executable(name='glpsol')
 
@@ -89,7 +90,7 @@ class HouseHold():
         self.model.Consumption = Param(self.model.Period, initialize=self.data.consumption, within=Any)
         self.model.Generation = Param(self.model.Period, initialize=self.data.generation, within=Any)
         self.model.NonServedCost = Param(self.model.Period, initialize=self.data.non_served_cost, within=Any)
-
+        
         
         # FCR variables 
 
@@ -107,10 +108,6 @@ class HouseHold():
         self.model.Curtailed_generation = Var(self.model.Period, initialize=0, bounds=(0, np.inf))
         self.model.charge_on = Var(self.model.Period, within=Binary)
         self.model.discharge_on= Var(self.model.Period, within=Binary)
-
-
-
-
 
         # Set constraint for the household
 
@@ -215,10 +212,20 @@ class HouseHold():
     # Extract results 
  
     def get_welfare(self):
-        return self.model.objective()
+        
+        return sum_product(self.model.NonServedCost, self.model.Non_served_consumption)()
 
     def get_planning(self):
         pass
+
+    def get_bids(self):
+        self.build_milp()
+        self.run_milp()
+        bids = []
+        for time in self.result.index:
+            bids.append({"time":time, "qtty":self.result.loc[time,"Grid_power"], "price":self.result.loc[time,"non_served_cost"]})
+        
+        return bids
 
     def get_value_function(self, range):
         SW =  []
@@ -256,11 +263,11 @@ class HouseHold():
 if __name__=="__main__":
 
     import json
-    household_1 = json.load(open("config\household\default_household.json"))
+    household_1 = json.load(open("config\household_profile\default_household.json"))
 
     house = HouseHold(household_1)
     generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
-    consumption_path = "data\consumption\Residential.csv"
+    consumption_path = "data\consumption\Reference-Residential.csv"
     spot_price_path = "data/spot_price/2020.csv"
     fcr_price_path = "data/fcr_price/random_fcr.csv"
 
@@ -272,26 +279,3 @@ if __name__=="__main__":
     house.run_milp()
 
     house.display_planning()
-
-
-    SWS=[]
-    for i in tqdm(range (5)):
-        house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-        for i in range(i):
-            house.next_data()
-        SW=[]
-        for capa in np.arange(1,20):
-            house.set_loadlimit(capa)
-            house.build_milp()
-            house.run_milp()
-            SW.append(house.get_welfare())
-        SWS.append(SW)
-        if house.param["generation"]["type"] =="solar":
-            house.param["generation"]["type"] = "wind"
-        else:
-            house.param["generation"]["type"] ="solar"
-    for i in range (len(SWS)):
-        plt.semilogy(np.arange(1,20),SWS[i], label =f"customer{i}")
-    plt.grid()
-    plt.legend()
-    plt.show()

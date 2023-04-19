@@ -66,7 +66,6 @@ class Market(object):
         quantities = np.array(list(map(lambda x: x.Quantity, self.Offers)))
         offerers = np.array(list(map(lambda x: x.CreatorID, self.Offers)))
         colors = np.array(list(map(lambda x: color[x], offerers)))
-        print(np.cumsum(quantities))
         plt.bar(np.cumsum(quantities), 
             height = prices,
             align="edge",
@@ -95,7 +94,7 @@ class Market(object):
 
         # Objective rule 
         def objective_rule(model):
-            return sum_product(model.Prices, model.is_awarded_bid) - 5*sum_product(model.Quantities,model.is_awarded_bid)
+            return sum_product(model.Prices, model.is_awarded_bid) - 0.04*sum_product(model.Quantities,model.is_awarded_bid)
         
         # Constraint rules
 
@@ -110,6 +109,7 @@ class Market(object):
         # self.market_model.one_bid_cons = Constraint(self.market_model.participants_set, rule = one_bid_per_participant_rule)
         self.market_model.limit_qtty_cons = Constraint(rule = limit_qtty_rule)
         opt = SolverFactory("glpk", executable="solver\glpk\glpsol.exe")
+        opt.options['tmlim'] = 3
         opt.solve(self.market_model)
         # unpack results
 
@@ -125,9 +125,11 @@ class Market(object):
         if self.Gate_open:
             print("Gate is open, please close it before clearing")
             raise TypeError
-        self.clearing_price, self.accepted_bids = self.dispatch(self.Offers, qtty_cleared)
-        self.sw_global = self.compute_social_welfare( self.accepted_bids, self.clearing_price)
-        self.qtty_cleared = qtty_cleared
+        for time in self.TimeSlots:
+            filtered_offers = list(filter(lambda x: x.TimeSlot == time, self.Offers))
+            self.clearing_price, self.accepted_bids = self.dispatch(filtered_offers, qtty_cleared)
+            self.sw_global = self.compute_social_welfare( self.accepted_bids, self.clearing_price)
+            self.qtty_cleared = qtty_cleared
         return self.clearing_price, self.accepted_bids
     
     def compute_social_welfare(self, accepted_offers, clearing_price):

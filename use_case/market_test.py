@@ -3,6 +3,28 @@ from mlica_for_elec.market import *
 
 import matplotlib.pyplot as plt
 import numpy as np
+import os 
+from tqdm import tqdm
+#################3
+
+def induce_elasticity(bids, elasticity):
+        new_bids = []
+        for bid in bids:
+            remaining_qtty = bid["qtty"]
+            running_price =0
+            while remaining_qtty > 1 :
+                running_price += bid["price"]* (- elasticity)
+                remaining_qtty-=1
+                if running_price < bid["price"]:
+                          new_bid= {"time":bid["time"], "qtty":1, "price":running_price}
+                          new_bids.append(new_bid)
+                else:
+                    break
+            new_bid= {"time":bid["time"], "qtty":remaining_qtty, "price": bid["price"]}
+            new_bids.append(new_bid)
+        return new_bids
+
+
 # Create market instance and test orders
 
 market = Market()
@@ -13,36 +35,34 @@ market = Market()
 
 import json
 
-household_1 = json.load(open("config\household\default_household.json"))
-
-house = HouseHold(household_1)
-
-generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
-consumption_path = "data\consumption\Residential.csv"
-spot_price_path = "data/spot_price/2020.csv"
-fcr_price_path = "data/fcr_price/random_fcr.csv"
-for i in tqdm(range (5)):
+print("Start loading household profiles")
+folder_path = "config\household_profile\\"
+houses = []
+for file in os.listdir(folder_path)[:20]:
+    if file.endswith(".json"):
+        household = json.load(open(folder_path+"/"+ file))
+    house = HouseHold(household)
+    generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
+    consumption_path = f"data/consumption/Reference-{house.param['consumption']['type']}.csv"
+    spot_price_path = "data/spot_price/2020.csv"
+    fcr_price_path = "data/fcr_price/random_fcr.csv"
     house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-    house.param["battery"]["power"] = np.random.randint(1,10)
-    house.param["generation"]["max_generation"] = np.random.randint(1,10)
-    house.param["battery"]["enabled"] = np.random.randint(0,2)
-    house.param["battery"]["fcr_enabled"] = np.random.randint(0,2)
-    print(f"Customer {i} has battery {house.param['battery']['enabled']} and fcr {house.param['battery']['fcr_enabled']}")
-    for _ in range(i+200):
-        house.next_data()
-    SW = house.get_value_function((0,11))
-    if house.param["generation"]["type"] =="solar":
-        house.param["generation"]["type"] = "wind"
-    else:
-        house.param["generation"]["type"] ="solar"
-    prices =np.array(list(map(lambda x:x[1],SW)))
-    quantities = np.array(list(map(lambda x:x[0],SW)))
-    marginal_prices = prices[1:]-prices[:-1]
-    for p in marginal_prices:
-        market.AddOrder(Order(CreatorID=i, TimeSlot=1,Side=True, Quantity=1, Price=-p))
+    houses.append(house)
+print(f"Loaded {len(houses)} households")
+print("Start compute social welfare")
+
+
+for i,house in tqdm(enumerate(houses)):
+    bids = house.get_bids()
+    ELASTICITY = -0.11
+    bids = induce_elasticity(bids,ELASTICITY)
+    for bid in bids:
+        market.AddOrder(Order(CreatorID=i, Side=True, TimeSlot=bid["time"], Quantity=bid["qtty"], Price=  bid["price"]))
+       
+
 market.close_gate()
 market.plot_orders()
-market.ClearMarket(20)
+market.ClearMarket(200)
 market.LMP_payments()
 market.VCG_payments()
 market.report_clearing()
