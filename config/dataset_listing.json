@@ -1,0 +1,6 @@
+{
+    "consumption" :["Hotel","Hospital","Office","Residential","Secondary School","Supermarket"],
+    "generation" : ["wind","solar"],
+    "consumption_node" : [1,2,3],
+    "generation_node" : [0]
+}

@@ -16,18 +16,18 @@ def induce_elasticity(bids, elasticity):
                 running_price += bid["price"]* (- elasticity)
                 remaining_qtty-=1
                 if running_price < bid["price"]:
-                          new_bid= {"time":bid["time"], "qtty":1, "price":running_price}
+                          new_bid= {"time":bid["time"], "qtty":1, "price":running_price, "node" : bid["node"]}
                           new_bids.append(new_bid)
                 else:
                     break
-            new_bid= {"time":bid["time"], "qtty":remaining_qtty, "price": bid["price"]}
+            new_bid= {"time":bid["time"], "qtty":remaining_qtty, "price": bid["price"], "node" : bid["node"]}
             new_bids.append(new_bid)
         return new_bids
 
 
 # Create market instance and test orders
 
-market = Market()
+market = Market("config\microgrid_profile/non_constrained_microgrid.json")
 
 
 # import profile
@@ -47,6 +47,7 @@ for file in os.listdir(folder_path)[:20]:
     spot_price_path = "data/spot_price/2020.csv"
     fcr_price_path = "data/fcr_price/random_fcr.csv"
     house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
+    house.next_data()
     houses.append(house)
 print(f"Loaded {len(houses)} households")
 print("Start compute social welfare")
@@ -57,17 +58,17 @@ for i,house in tqdm(enumerate(houses)):
     ELASTICITY = -0.11
     bids = induce_elasticity(bids,ELASTICITY)
     for bid in bids:
-        market.AddOrder(Order(CreatorID=i, Side=True, TimeSlot=bid["time"], Quantity=bid["qtty"], Price=  bid["price"]))
+        market.AddOrder(Order(CreatorID=i, Side=True, TimeSlot=bid["time"], Quantity=bid["qtty"], Price=  bid["price"], Node=bid["node"]))
        
-
+spot_prices =  houses[0].get_spot_price()
 market.close_gate()
 market.plot_orders()
-market.ClearMarket(200)
+market.ClearMarket(spot_prices)
 market.LMP_payments()
 market.VCG_payments()
 market.report_clearing()
 market.plot_clearing()
-market.plot_clearing_per_participant()
+
 market.plot_payments()
 
 

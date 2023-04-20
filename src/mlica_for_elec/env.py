@@ -1,4 +1,7 @@
+import os 
+import json
 import pandas as pd
+import itertools as iter
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -11,7 +14,7 @@ register_executable(name='glpsol')
 class HouseHold():
     def __init__(self, param) -> None:
         self.param = param
-        
+        self.node =self.param["grid"]["node"]
         self.data = None
         self.result = None
 
@@ -36,7 +39,7 @@ class HouseHold():
         df = pd.concat([data_generation, data_consumption, data_fcr_price, data_spot_price], axis=1)
         
         df["non_served_cost"] = self.param["consumption"]["cost_of_non_served_energy"]
-        self.generator_data = ( df.iloc[24*i:24*(i+1), : ] for i in range(365) )
+        self.generator_data = ( df.iloc[24*i:24*(i+1), : ].reset_index(drop=True) for i in range(365) )
         
         self.data = next(self.generator_data)
 
@@ -209,11 +212,13 @@ class HouseHold():
         
 
 
-    # Extract results 
  
     def get_welfare(self):
         
         return sum_product(self.model.NonServedCost, self.model.Non_served_consumption)()
+
+    def get_spot_price(self):
+        return self.data.spot_price
 
     def get_planning(self):
         pass
@@ -223,7 +228,7 @@ class HouseHold():
         self.run_milp()
         bids = []
         for time in self.result.index:
-            bids.append({"time":time, "qtty":self.result.loc[time,"Grid_power"], "price":self.result.loc[time,"non_served_cost"]})
+            bids.append({"time":time, "node":self.node, "qtty":self.result.loc[time,"Grid_power"], "price":self.result.loc[time,"non_served_cost"]})
         
         return bids
 
@@ -258,24 +263,132 @@ class HouseHold():
         plt.show()
 
 
+class Microgrid():
+
+    def __init__(self, households, param):
+        self.param = param
+        self.households = households
+        self.congestion_matrix = self.param["congestion_matrix"]
+        self.grid_connection = self.param["grid_connection"]
+        self.grid_nodes = self.param["nodes"]
+        self.N_nodes = len(self.grid_nodes)
+
+    def build_model(self):
+        self.model = ConcreteModel()
+        for i,house in enumerate(self.households):
+            house.build_milp()
+            self.model.add_component(f"house_{i}", house.model)
+            self.model.__getattribute__(f"house_{i}").objective.deactivate()
+        
+        # add grid variables
+        self.model.nodes = Set(initialize=self.grid_nodes)
+        self.model.Period = Set(initialize=self.households[0].model.Period)
+        self.model.flows = Var(self.model.nodes, self.model.nodes, self.model.Period, domain=NonNegativeReals)
+        self.model.external_import = Var(self.model.Period, domain=NonNegativeReals)
+        # add kirchoff's law
+
+        def kirchoff_rule(model, node,t):
+            s = 0
+            for i,house in enumerate(self.households):
+                if house.node == node:  
+                    s+=self.model.__getattribute__(f"house_{i}").Grid_power[t]
+            if node == 0 :
+                return (s + sum(model.flows[node,j,t] for j in model.nodes if j != node)
+                          == sum(model.flows[j,node,t] for j in model.nodes if j != node)
+                         + self.model.external_import[t])
+            else:
+                return (s + sum(model.flows[node,j,t] for j in model.nodes if j != node)
+                         == sum(model.flows[j,node,t] for j in model.nodes if j != node))
+        
+
+        def capacity_limitation_rule(model, node1,node2, t):
+            return model.flows[node1,node2,t] <= self.congestion_matrix[node1][node2]
+            
+        def limit_import_rule(model, t):
+            return model.external_import[t] <= self.grid_connection
+
+        
+        
+        
+        
+        def objective_rule(model):
+            return sum(model.__getattribute__(f"house_{i}").objective.expr for i in range(len(self.households)))
+        
+        self.model.obj = Objective(rule=objective_rule, sense=minimize)
+        self.model.node_law_constraint = Constraint(self.model.nodes,self.model.Period, rule=kirchoff_rule)
+        self.model.limit_import_constraint = Constraint(self.model.Period, rule=limit_import_rule)
+        self.model.capacity_limitation_rule = Constraint(self.model.nodes,self.model.nodes,self.model.Period, rule=capacity_limitation_rule)
+    
+    def run_model(self):
+        opt = SolverFactory('glpk')
+        result_obj = opt.solve(self.model, tee=True)
+        result_dic = {}
+        for i,house in enumerate(self.households):
+            result_dic[i]=[]
+            result_dic["index"]=[]
+            for j in self.model.__getattribute__(f"house_{i}").Period:
+                result_dic["index"].append(j)
+                result_dic[i].append(self.model.__getattribute__(f"house_{i}").Grid_power[j].value)
+        self.consumption = pd.DataFrame(result_dic).set_index("index")
+        self.consumption["external_import"] = self.model.external_import.get_values()
+        trans_dic = {}
+
+        for node in self.model.nodes:
+            for node2 in self.model.nodes:
+                if node != node2:
+                    trans_dic[(node,node2)] = []
+                    trans_dic["index"]=[]
+                    for t in self.model.Period:    
+                        trans_dic["index"].append(t)
+                        trans_dic[(node,node2)].append(self.model.flows[node,node2,t].value)
+        self.transmission = pd.DataFrame(trans_dic).set_index("index")
+
+    def get_optimal_welfare():
+        pass
+
+    def display_gridflows(self):
+        fig, ax = plt.subplots(self.N_nodes,self.N_nodes)
+
+        for node1,node2 in iter.product(self.grid_nodes,self.grid_nodes):
+            if node2 > node1:
+                self.transmission[(node1,node2)].plot(kind="bar", ax=ax[node1,node2])
+                (-self.transmission[(node2,node1)]).plot(kind="bar", ax=ax[node1,node2])
+                ax[node1,node2].axhline(y=self.congestion_matrix[node1][node2], color='r', linestyle='-')
+                ax[node1,node2].axhline(y=-self.congestion_matrix[node2][node1], color='r', linestyle='-')
+                ax[node1,node2].set_title(f"Flow from {node1} to {node2}")
+        
+        for node1 in self.grid_nodes:
+            self.transmission[((node1,node2) for node2 in self.grid_nodes if node1!=node2)].plot(kind="bar", ax=ax[node1,0], stacked=True)
+            (-self.transmission[((node2,node1) for node2 in self.grid_nodes if node1!=node2)]).plot(kind="bar", ax=ax[node1,0], stacked=True)
+            for i,house in enumerate(self.households):
+                if house.node == node1:
+                    self.consumption[i].plot(kind="bar", ax=ax[node1,0], label=f"house_{i}", color ="red")
+            ax[node1,0].set_title(f"Consumption at node {node1}")
+            ax[node1,0].legend()
+        ax[0,0].axhline(y=self.grid_connection, color='r', linestyle='-')
+        plt.show()
 
 
 if __name__=="__main__":
+    print("Start loading household profiles")
+    folder_path = "config\household_profile\\"
+    houses = []
+    for file in os.listdir(folder_path)[:10]:
+        if file.endswith(".json"):
+            household = json.load(open(folder_path+"/"+ file))
+        house = HouseHold(household)
+        generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
+        consumption_path = f"data/consumption/Reference-{house.param['consumption']['type']}.csv"
+        spot_price_path = "data/spot_price/2020.csv"
+        fcr_price_path = "data/fcr_price/random_fcr.csv"
+        house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
+        houses.append(house)
+    print(f"Loaded {len(houses)} households")
+    print("Start compute social welfare")
 
-    import json
-    household_1 = json.load(open("config\household_profile\default_household.json"))
+    microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
+    MG = Microgrid(houses, microgrid_1)
+    MG.build_model()
+    MG.run_model()
+    MG.display_gridflows()
 
-    house = HouseHold(household_1)
-    generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
-    consumption_path = "data\consumption\Reference-Residential.csv"
-    spot_price_path = "data/spot_price/2020.csv"
-    fcr_price_path = "data/fcr_price/random_fcr.csv"
-
-    house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-    house.next_data()
-    house.next_data()
-    house.next_data()
-    house.build_milp()
-    house.run_milp()
-
-    house.display_planning()

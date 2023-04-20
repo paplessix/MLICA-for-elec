@@ -10,7 +10,7 @@ def generate_random_profile(template):
     # Consumption
 
     template["consumption"]["type"] = np.random.choice(listing_file["consumption"])
-    template["consumption"]["max_consumption"] = np.random.randint(1,11)
+    template["consumption"]["max_consumption"] = np.random.randint(10,21)
     template["consumption"]["cost_of_non_served_energy"] = np.random.random()/100+0.2
     # Generation
     template["generation"]["type"] = np.random.choice(listing_file["generation"])
@@ -20,6 +20,9 @@ def generate_random_profile(template):
     template["battery"]["power"] = np.random.randint(1,5)
     template["battery"]["enabled"] = bool(np.random.randint(0,2))
     template["battery"]["fcr_enabled"] = bool(np.random.randint(0,2))
+
+    # Grid 
+    template["grid"]["node"] = int(np.random.choice(listing_file["consumption_node"]))
     return template
 
 if __name__ == "__main__":
