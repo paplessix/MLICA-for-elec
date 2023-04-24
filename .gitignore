@@ -24,6 +24,7 @@ __pycache__/*
 data
 solver
 tags
+config
 
 # Package files
 *.egg

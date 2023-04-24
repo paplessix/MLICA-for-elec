@@ -5,7 +5,7 @@ import itertools as iter
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from mlica_for_elec.util import *
+from mlica_for_elec.util_env import *
 from pyomo.environ import *
 import pyomo.kernel as pmo
 from pyutilib.services import register_executable, registered_executable
@@ -272,6 +272,9 @@ class Microgrid():
         self.grid_connection = self.param["grid_connection"]
         self.grid_nodes = self.param["nodes"]
         self.N_nodes = len(self.grid_nodes)
+    
+    def create_mg(households, param):
+        return Microgrid(households, param)
 
     def build_model(self):
         self.model = ConcreteModel()
@@ -367,6 +370,22 @@ class Microgrid():
             ax[node1,0].legend()
         ax[0,0].axhline(y=self.grid_connection, color='r', linestyle='-')
         plt.show()
+
+    def get_bidder_ids(self):
+        pass
+
+    def get_good_ids(self):
+        pass
+
+    def get_random_feasible_bundle_set(self):
+        pass
+    
+    def get_random_feasible_bundle(self, bidder_id, number_of_bundles):
+        pass
+
+
+    def calculate_value(self,bidder_id,bundle):
+        pass
 
 
 if __name__=="__main__":

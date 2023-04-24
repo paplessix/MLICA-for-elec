@@ -38,7 +38,7 @@ import json
 print("Start loading household profiles")
 folder_path = "config\household_profile\\"
 houses = []
-for file in os.listdir(folder_path)[:20]:
+for file in os.listdir(folder_path)[:5]:
     if file.endswith(".json"):
         household = json.load(open(folder_path+"/"+ file))
     house = HouseHold(household)
