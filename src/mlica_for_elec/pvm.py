@@ -47,7 +47,7 @@ def pvm(value_model, scaler, caps, L, parameters, epochs, batch_size, model_name
     logging.debug(seed_instance)
     seeds_random_bids = None  # (*) truly uniform bids: no bidder specific seeds
     random.seed(seed_instance)  # (*) truly uniform bids: global seed
-    return 0
+
     # (1) PVM Algorithm: START
     logging.debug('\n(1) START PVM:')
     logging.debug('-----------------------------------------------')
@@ -57,15 +57,20 @@ def pvm(value_model, scaler, caps, L, parameters, epochs, batch_size, model_name
     # # for bids per bidder type when SATS RANDOM SAMPLING is used (not used in AAAI 2020 paper)
     # seeds_random_bids = [list(range(i, i+6)) for i in range(1, 1+number_of_instances*len(value_model.get_bidder_ids()), len(value_model.get_bidder_ids()))][m]
     # =============================================================================
-
+    
     E = Economies(value_model=value_model, c0=c0, ce=ce, min_iteration=min_iteration, epochs=epochs, batch_size=batch_size, L=L, regularization_type=regularization_type,
                   Mip_bounds_tightening=Mip_bounds_tightening, warm_start=warm_start, scaler=scaler)  # create economy instance
+    print(E.bidder_ids)
+
     E.set_initial_bids(seeds_random_bids=seeds_random_bids)  # create inital bids V^0, uniformly sampling at random from bundle space
+
     E.set_NN_parameters(parameters=parameters)   # set NN parameters
     # activate weights (not used in AAAI 2020 paper)
     if sample_weight_on:
         E.activate_weights(sample_weight_scaling=sample_weight_scaling)
     # ---------------------------------------------------------------------------------------------------------------------------------------------------- #
+
+ 
     while any(list(E.status.values())):
         # ---------------------------------------------------------------------------------------------------------------------------------------------------- #
         for economy_key, status in E.status.items():
@@ -91,6 +96,7 @@ def pvm(value_model, scaler, caps, L, parameters, epochs, batch_size, model_name
         E.reset_keras_models()
         logging.debug('Reset Argmax allocations')
         E.reset_argmax_allocations()
+    return 0    
     # ---------------------------------------------------------------------------------------------------------------------------------------------------- #
     # logging.debug('Update Main Economy')
     # E.add_all_bids_to_main_economy()  # add all bids to main economy, NEW ALLOCATION RULE x^(-\empty set) will not be calculated here; main economy allocation is then x^pvm (not used in AAAI 2020 paper)
@@ -125,3 +131,6 @@ def pvm(value_model, scaler, caps, L, parameters, epochs, batch_size, model_name
 
 
 print('PVM function imported')
+# %%
+if __name__=="__main__":
+    print("PVM function imported")

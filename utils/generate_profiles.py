@@ -27,7 +27,7 @@ def generate_random_profile(template, ID = None):
 
 if __name__ == "__main__":
     for i in range(20):
-        json_file = json.load(open("config\household_profile\default_household.json"))  
+        json_file = json.load(open("config\default_household.json"))  
         profile = generate_random_profile(json_file, ID = i)
         profile = json.dump(profile, open(f"config\household_profile/household_random_{i}.json", "w"), sort_keys=True, indent=4)
 

@@ -14,6 +14,7 @@ register_executable(name='glpsol')
 class HouseHold():
     def __init__(self, param) -> None:
         self.param = param
+        self.ID = self.param["ID"]
         self.node =self.param["grid"]["node"]
         self.data = None
         self.result = None
@@ -372,25 +373,42 @@ class Microgrid():
         plt.show()
 
     def get_bidder_ids(self):
-        pass
+        return [house.ID for house in self.households]
 
     def get_good_ids(self):
-        pass
+        return [i for i in range(24)]
 
     def get_random_feasible_bundle_set(self):
-        pass
+        self.build_model()
+        self.model.obj.deactivate()
+        
+        def random_objective_rule(model):
+            return sum(sum_product(np.random.rand(len(model.__getattribute__(f"house_{i}").Period))/(-10),model.__getattribute__(f"house_{i}").Grid_power) for i in range(len(self.households))) 
+        self.model.objective = Objective(rule = random_objective_rule, sense=minimize)
+        opt = SolverFactory('glpk')
+        result_obj = opt.solve(self.model)
+        opt.options['glpk'] = dict(msg_lev='GLP_MSG_OFF')
+        result_dic = {}  
+        for i,house in enumerate(self.households):
+            result_dic[i]=[]
+            result_dic["index"]=[]
+            for j in self.model.__getattribute__(f"house_{i}").Period:
+                result_dic["index"].append(j)
+                result_dic[i].append(self.model.__getattribute__(f"house_{i}").Grid_power[j].value)
+        self.consumption = pd.DataFrame(result_dic).set_index("index")      
+        return self.consumption.to_numpy()
     
     def get_random_feasible_bundle(self, bidder_id, number_of_bundles):
         pass
 
 
     def calculate_value(self,bidder_id,bundle):
-        pass
+        return np.random.random()
 
 
 if __name__=="__main__":
     print("Start loading household profiles")
-    folder_path = "config\household_profile\\"
+    folder_path = "config\household_profile/"
     houses = []
     for file in os.listdir(folder_path)[:10]:
         if file.endswith(".json"):
@@ -404,7 +422,7 @@ if __name__=="__main__":
         houses.append(house)
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
-
+    print([house.ID for house in houses])
     microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
     MG.build_model()
