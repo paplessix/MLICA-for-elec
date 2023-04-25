@@ -37,8 +37,15 @@ MLICA-for-elec
     Add a short description here!
 
 
-A longer description of your project goes here...
 
+This repository contains work realised in the frame of my master thesis conducted at DTU Wind & Energy systems. Goal was to developp a AI powered combinatorial electricity market based on the MLICA algorithm.
+The ML - ICA (Machine learning Iterative Combinatorial Auctions) mechanism is extensively described in :
+
+[1] J. Weissteiner and S. Seuken, “Deep Learning-powered Iterative Combinatorial Auctions,” AAAI, vol. 34, no. 02, pp. 2284–2293, Apr. 2020, doi: 10.1609/aaai.v34i02.5606.
+[2] M. Beyeler, G. Brero, B. Lubin, and S. Seuken, “iMLCA: Machine Learning-powered Iterative Combinatorial Auctions with Interval Bidding,” in Proceedings of the 22nd ACM Conference on Economics and Computation, in EC ’21. New York, NY, USA: Association for Computing Machinery, juillet 2021, p. 136. doi: 10.1145/3465456.3467535.
+[3] G. Brero, B. Lubin, and S. Seuken, “Combinatorial Auctions via Machine Learning-based Preference Elicitation,” in Proceedings of the Twenty-Seventh International Joint Conference on Artificial Intelligence, Stockholm, Sweden: International Joint Conferences on Artificial Intelligence Organization, Jul. 2018, pp. 128–136. doi: 10.24963/ijcai.2018/18.
+
+Code is adapted from the original implementation of the MLICA algorithm by the authors of [1], [2] and [3] available at https://github.com/weissteiner/DL-ICA
 
 .. _pyscaffold-notes:
 
