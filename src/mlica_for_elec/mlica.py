@@ -4,6 +4,7 @@ import logging
 import time as time 
 import numpy as np
 import mlica_for_elec.util as util
+from mlica_for_elec.kernel import KernelModel
 import sys
 
 
@@ -204,9 +205,11 @@ class Economies:
         fitted_scaler = Data[1]
         for bidder_id, bids in D.items():
             logging.debug(bidder_id)
-            # fit DNNs
+            #   fit DNNs
             start = time.time()
-            neural_net = NN(model_parameters=parameters[bidder_id], X_train=bids[0], Y_train=bids[1], scaler=fitted_scaler) #TODO: rewrite model
+            neural_net = KernelModel(model_parameters=parameters[bidder_id], X_train=bids[0], Y_train=bids[1], scaler=fitted_scaler) #TODO: rewrite model
+            
+            # neural_net = NN(model_parameters=parameters[bidder_id], X_train=bids[0], Y_train=bids[1], scaler=fitted_scaler) #TODO: rewrite model
             neural_net.initialize_model(regularization_type=self.regularization_type)
             if sample_weights is not None:
                 self.losses[economy_key][bidder_id].append(neural_net.fit(epochs=self.epochs, batch_size=self.batch_size, X_valid=None, Y_valid=None, sample_weight=sample_weights[bidder_id]))

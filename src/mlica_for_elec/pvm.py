@@ -87,7 +87,6 @@ def pvm(value_model, scaler, caps, L, parameters, epochs, batch_size, model_name
                 E.calculate_argmax_allocation(economy_key=economy_key)
                 # E.do_query(economy_key=economy_key, allocation=E.argmax_allocation)  # version 1 with total caps (not used in AAAI 2020 paper)
                 E.do_query_2(economy_key=economy_key, allocation=E.argmax_allocation)  # version 2 with individual caps
-                clear_session()  # clear keras session
         # ---------------------------------------------------------------------------------------------------------------------------------------------------- #
         # logging.debug('Update Main Economy')
         # E.update_main_economy()  # update bids for main_economy additionally with all the elicited bids from the others from the SAME iteration, ''add marginals version'' (not used in AAAI 2020 paper)
