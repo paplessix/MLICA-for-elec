@@ -1,5 +1,13 @@
-from mlica_for_elec.env import *
-from mlica_for_elec.pvm import *
+from mlca_for_elec.env.env import *
+from mlca_for_elec.mlca_elec.mlca import *
+from mlca_for_elec.mlca_elec.mlca_util import create_value_model, problem_instance_info
+
+import argparse
+import json
+import logging
+import os
+from collections import defaultdict
+from functools import partial
 
 import logging
 import pandas as pd
@@ -27,7 +35,8 @@ print("Start compute social welfare")
 
 microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
-caps = [2,40]
+Qinit = 2
+Qmax=100
 L=3000
 sample_weight_on = False
 sample_weight_scaling = None
@@ -40,19 +49,53 @@ model_name = 'Kernel_Linear'
 Mip_bounds_tightening = "IA"
 warm_start=False
 parameters = {f"Bidder_{i}" : {} for i in range(len(MG.households))}
-RESULT = pvm(MG, 
-    scaler=False,
-    caps = caps,
-    L = L,
-    parameters = parameters,
-    epochs = epochs,
-    batch_size = batch_size,
-    model_name = model_name,
-    sample_weight_on = sample_weight_on,
-    sample_weight_scaling = sample_weight_scaling,
-    min_iteration = min_iteration,
-    seed_instance = seed_instance,
-    regularization_type = regularization_type,
-    Mip_bounds_tightening = Mip_bounds_tightening,
-    warm_start = warm_start
+
+NN_parameters = defaultdict(dict)
+
+
+base ={"batch_size": 1,
+          "epochs": 92,
+          "l2": 5.092030928331528e-07,
+          "loss_func": "F.l1_loss",
+          "lr": 0.00859298701886299,
+          "num_hidden_layers": 1,
+          "num_neurons": 4,
+          "optimizer": "Adam"
+        }
+
+
+for house in MG.households:
+    for key, value in base.items():
+        NN_parameters[f"Bidder_{house.ID}"][key] = value
+    
+    NN_parameters[f"Bidder_{house.ID}"]['layer_type'] = 'PlainNN'
+
+    NN_parameters[f"Bidder_{house.ID}"]['num_hidden_units'] = int(max(1, np.round(
+        NN_parameters[f"Bidder_{house.ID}"]['num_neurons'] / NN_parameters[f"Bidder_{house.ID}"]['num_hidden_layers'])))
+    NN_parameters[f"Bidder_{house.ID}"].pop('num_neurons')
+
+# NN_parameters = value_model.parameters_to_bidder_id(NN_parameters)
+
+
+MIP_parameters = {
+        'bigM': 2000000,
+        'mip_bounds_tightening': 'IA',
+        'warm_start': False,
+        'time_limit':300,
+        'relative_gap': 1e-2,
+        'integrality_tol': 1e-6,
+        'attempts_DNN_WDP': 5
+    }
+
+
+
+RESULT = mlca_mechanism(value_model = MG, 
+    
+    Qinit = Qinit,
+    Qmax = Qmax,
+    Qround = 1,
+    MIP_parameters=MIP_parameters,
+    NN_parameters=NN_parameters,
+    scaler=None,
+
     )

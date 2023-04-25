@@ -1,1 +1,2 @@
 - Equality constraints must be used on rounded values ??
+- should init bid form a feasible solution ?

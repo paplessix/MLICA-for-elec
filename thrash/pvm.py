@@ -25,7 +25,7 @@ import logging
 import random
 
 # Own Modules
-from mlica_for_elec.env import Microgrid
+from env.env import Microgrid
 from mlica_for_elec.mlica import Economies
 
 __author__ = 'Jakob Weissteiner'

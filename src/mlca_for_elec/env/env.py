@@ -5,7 +5,7 @@ import itertools as iter
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from mlica_for_elec.util_env import *
+from mlca_for_elec.env.util_env import *
 from pyomo.environ import *
 import pyomo.kernel as pmo
 from pyutilib.services import register_executable, registered_executable
@@ -194,6 +194,7 @@ class HouseHold():
 
     def run_milp(self):
         opt = SolverFactory("glpk", executable="solver\glpk\glpsol.exe")
+        opt.options['tmlim'] = 5
         opt.solve(self.model)
 
         # unpack results
@@ -377,6 +378,18 @@ class Microgrid():
 
     def get_good_ids(self):
         return [i for i in range(24)]
+    
+    def get_uniform_random_bids(self, bidder_id,number_of_bids,seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        bids =[np.random.rand(24)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
+        res = []
+        for bid in bids:
+            val = self.calculate_value(bidder_id,bid)
+            np.append(bid,val)
+            res.append(bid)
+        return res
+
 
     def get_random_feasible_bundle_set(self):
         self.build_model()
@@ -403,8 +416,13 @@ class Microgrid():
 
 
     def calculate_value(self,bidder_id,bundle):
-        return np.random.random()
-
+        self.households[bidder_id].build_milp()
+        def grid_exchange_fix(model, i):
+            return model.Grid_power[i] == bundle[i]
+        self.households[bidder_id].model.grid_exchange_fix = Constraint(self.households[bidder_id].model.Period, rule=grid_exchange_fix)
+        self.households[bidder_id].run_milp()
+        return np.random.rand()
+            
 
 if __name__=="__main__":
     print("Start loading household profiles")

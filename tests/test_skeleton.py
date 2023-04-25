@@ -1,6 +1,6 @@
 import pytest
 
-from mlica_for_elec.skeleton import fib, main
+from mlca.skeleton import fib, main
 
 __author__ = "paplessix"
 __copyright__ = "paplessix"

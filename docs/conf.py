@@ -99,7 +99,7 @@ copyright = "2023, paplessix"
 # If you don’t need the separation provided between version and release,
 # just set them both to the same value.
 try:
-    from mlica_for_elec import __version__ as version
+    from mlca import __version__ as version
 except ImportError:
     version = ""
 

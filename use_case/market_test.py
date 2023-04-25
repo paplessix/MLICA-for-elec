@@ -1,5 +1,5 @@
-from mlica_for_elec.env import *
-from mlica_for_elec.market import *
+from env.env import *
+from env.market import *
 
 import matplotlib.pyplot as plt
 import numpy as np

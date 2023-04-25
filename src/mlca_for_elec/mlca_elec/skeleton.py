@@ -24,7 +24,7 @@ import argparse
 import logging
 import sys
 
-from mlica_for_elec import __version__
+from mlca_elec import __version__
 
 __author__ = "paplessix"
 __copyright__ = "paplessix"
