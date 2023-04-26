@@ -35,7 +35,7 @@ print("Start compute social welfare")
 
 microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
-Qinit = 2
+Qinit =30
 Qmax=100
 L=3000
 sample_weight_on = False

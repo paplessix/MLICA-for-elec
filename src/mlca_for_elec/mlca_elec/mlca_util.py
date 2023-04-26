@@ -128,9 +128,9 @@ def initial_bids_mlca_unif(MicroGrid_instance, number_initial_bids, bidder_names
                                                                      number_of_bids=number_initial_bids,
                                                                      seed=bidder_seeds[i]))
         # add null bundle already here*
-        null = np.zeros(D.shape[1]).reshape(1, -1)  # add null bundle
-        D = np.append(D, null, axis=0)
-
+        null = np.zeros(D.shape[1]) # add null bundle
+        null[-1] = MicroGrid_instance.calculate_value( bidder_id=key_to_int(bidder),bundle = null[:-1]) # TODO
+        D = np.append(D, null.reshape(1, -1) , axis=0)
         # get unique ones if sampled equal bundles
         unique_indices = np.unique(D[:, :-1], return_index=True, axis=0)[1]
         seed_additional_bundle = None if bidder_seeds[i] is None else 10 ** 6 * bidder_seeds[i]
@@ -138,17 +138,15 @@ def initial_bids_mlca_unif(MicroGrid_instance, number_initial_bids, bidder_names
             tmp = np.asarray(MicroGrid_instance.get_uniform_random_bids(bidder_id=key_to_int(bidder),
                                                                            number_of_bids=1,
                                                                            seed=seed_additional_bundle))
-            
             D = np.vstack((D, tmp))
             D = MicroGrid_instance.get_random_feasible_bundle_set()
             unique_indices = np.sort(np.unique(D[:, :-1], return_index=True, axis=0)[1])
             if seed_additional_bundle is not None: seed_additional_bundle += 1
-
-        D = D[unique_indices, :]
+        
+        D = D[unique_indices, :] 
         logging.debug('Shape (incl. null bundle) %s', D.shape)
-
         X = D[:, :-1]
-        X = X.astype(int)  # convert bundles to numpy integers
+        # X = X.astype(int)   convert bundles to numpy integers
         Y = D[:, -1]
         initial_bids[bidder] = [X, Y]
         i += 1

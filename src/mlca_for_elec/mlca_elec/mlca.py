@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 import numpy as np
-# from numpyencoder import NumpyEncoder
+from numpyencoder import NumpyEncoder
 
 from mlca_for_elec.mlca_elec.mlca_economies import MLCA_Economies
 from mlca_for_elec.mlca_elec.mlca_util import key_to_int, timediff_d_h_m_s
@@ -149,7 +149,7 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
             if np.isclose(efficiency, 1.0, rtol=1e-4):
                 logging.info('EARLY STOPPING - 100% efficiency reached.')
                 break
-        return 0 
+
         # TODO:Eff check/break condition as in mlca_mechanism_ft file
         if res_path is not None:
             json.dump(
@@ -167,7 +167,6 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
         # Update while condition
         Rmax = max(E.get_number_of_elicited_bids().values())
         CHECK = Rmax <= (E.Qmax - E.Qround)
-
     # allocation & payments # | Line 20
     logging.info('ALLOCATION')
     logging.info('---------------------------------------------')

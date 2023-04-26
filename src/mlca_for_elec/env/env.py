@@ -76,7 +76,8 @@ class HouseHold():
     # Objective function
 
     def cost_function(self,model):
-        cost =sum_product(model.SpotPrice, model.Grid_power) + sum_product(model.NonServedCost, model.Non_served_consumption) - sum_product(model.FCRPrice, model.FCR)
+        # cost =sum_product(model.SpotPrice, model.Grid_power) + sum_product(model.NonServedCost, model.Non_served_consumption) - sum_product(model.FCRPrice, model.FCR)
+        cost = sum_product(model.NonServedCost, model.Non_served_consumption) 
         return cost
     
     #    Run 
@@ -386,7 +387,8 @@ class Microgrid():
         res = []
         for bid in bids:
             val = self.calculate_value(bidder_id,bid)
-            np.append(bid,val)
+            print(val)
+            bid = np.append(bid,val)
             res.append(bid)
         return res
 
@@ -413,6 +415,8 @@ class Microgrid():
     
     def get_random_feasible_bundle(self, bidder_id, number_of_bundles):
         pass
+    def get_model_name(self):
+        return "GridModel"
 
 
     def calculate_value(self,bidder_id,bundle):
@@ -421,7 +425,8 @@ class Microgrid():
             return model.Grid_power[i] == bundle[i]
         self.households[bidder_id].model.grid_exchange_fix = Constraint(self.households[bidder_id].model.Period, rule=grid_exchange_fix)
         self.households[bidder_id].run_milp()
-        return np.random.rand()
+        self.households[bidder_id].model.objective.expr()
+        return self.households[bidder_id].model.objective.expr()
             
 
 if __name__=="__main__":

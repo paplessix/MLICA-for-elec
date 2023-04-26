@@ -28,7 +28,11 @@ def weights_init(m):
 
 def compute_metrics(preds, targets):
     metrics = {}
-    r = scipy_stats.linregress(preds, targets)[2]
+    if sum(preds) == 0:
+        r = 0
+    else:
+        r = scipy_stats.linregress(preds, targets)[2]
+
     kendall_tau = scipy_stats.kendalltau(preds, targets).correlation
 
     metrics['r'] = r
