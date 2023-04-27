@@ -6,7 +6,7 @@ import random
 from collections import defaultdict
 from datetime import datetime
 from functools import partial
-
+from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -14,9 +14,9 @@ import sklearn.metrics
 import torch.optim as optim
 from numpyencoder import NumpyEncoder
 from scipy import stats as scipy_stats
-
+from tqdm import tqdm 
 from mlca_for_elec.networks.ca_layers import *
-from mlca_for_elec.networks.utils import convert_bundle_space_to_pt_data
+from mlca_for_elec.networks.utils import convert_bundle_space_to_pt_data, generate_pt_data
 
 sns.set_style('whitegrid')
 
@@ -28,13 +28,11 @@ def weights_init(m):
 
 def compute_metrics(preds, targets):
     metrics = {}
-    if sum(preds) == 0:
-        r = 0
-    else:
-        r = scipy_stats.linregress(preds, targets)[2]
-
     kendall_tau = scipy_stats.kendalltau(preds, targets).correlation
-
+    if sum(preds)== 0 :
+        r = 1
+    else: 
+        r = scipy_stats.linregress(preds, targets)[2] #TODO
     metrics['r'] = r
     metrics['kendall_tau'] = kendall_tau
     mae = sklearn.metrics.mean_absolute_error(preds, targets)
@@ -84,6 +82,7 @@ class Net(nn.Module):
 
     def forward(self, x):
         for layer, activation_func in zip(self.layers, self.activation_funcs):
+
             x = layer(x)
             x = activation_func(x)
 
@@ -135,6 +134,7 @@ def test(model, device, loader, valid_true, epoch, dataset_info, loss_func, plot
 
     preds, targets = (np.array(preds) * dataset_info['target_max']).tolist(), \
                      (np.array(targets) * dataset_info['target_max']).tolist()
+    print(preds)
     metrics = {}
 
     # Check 0-to-0 mapping
@@ -155,7 +155,7 @@ def test(model, device, loader, valid_true, epoch, dataset_info, loss_func, plot
         dat_min, dat_max = min(min(preds), min(targets)), \
                            max(max(preds), max(targets))
         plt.figure(figsize=(4, 3))
-        plt.scatter(np.array(targets), np.array(preds), s=1, alpha=0.01)
+        plt.scatter(np.array(targets), np.array(preds), s=1, alpha=1)
         plt.plot([dat_min, dat_max], [dat_min, dat_max], 'y')
         plt.ylabel('Pred')
         plt.xlabel('True')
@@ -196,16 +196,19 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
     last_train_loss = np.inf
     best_model = None
     best_epoch = 0
-
+    writer = SummaryWriter()
     reattempt = True
     attempts = 0
-    while reattempt and attempts < 20:
+    while reattempt and attempts < 1: #TODO: has been changed
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(config['epochs']))
         attempts += 1
         model.apply(weights_init)
-        for epoch in range(1, config['epochs'] + 1):
+        for epoch in tqdm(range(1, config['epochs'] + 1)):
             metrics['train'][epoch] = train(model, device, train_loader, optimizer, epoch, config,
                                             loss_func=loss_func)
+            writer.add_scalar('Loss/train', metrics['train'][epoch]["loss"], epoch)
+            writer.add_scalar('Pearson/train', metrics['train'][epoch]["r"], epoch)
+            writer.add_scalar('MAE/train', metrics['train'][epoch]["mae"], epoch)
             scheduler.step()
 
         if last_train_loss > metrics['train'][epoch]['loss']:
@@ -222,7 +225,7 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
     # Transform the weights
     model.transform_weights()
     if val_dataset is not None:
-        metrics['val'][epoch] = test(model, device, val_loader, valid_true=True, plot=False, epoch=epoch,
+        metrics['val'][epoch] = test(model, device, val_loader, valid_true=True, plot=True, epoch=epoch,
                                      log_path=None, dataset_info=config, loss_func=loss_func)
 
     if eval_test:
@@ -239,11 +242,18 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
     return model, logs
 
 
-def get_training_data(SAT_instance, num_train_data, seed, bidder_id, layer_type, normalize, normalize_factor):
-    train_dataset, val_dataset, test_dataset, dataset_info = convert_bundle_space_to_pt_data(
-        'data/{}/{}_seed{}_all_bids.pkl'.format(
-            SAT_instance.upper(), SAT_instance.upper(), seed), bidder_id,
-        num_train_data=num_train_data, normalize=normalize, seed=seed, normalize_factor=normalize_factor)
+def get_training_data(MicroGrid_instance, num_train_data, seed, bidder_id, layer_type, normalize, normalize_factor):
+    #train_dataset, val_dataset, test_dataset, dataset_info = convert_bundle_space_to_pt_data(
+    #    'data/{}/{}_seed{}_all_bids.pkl'.format(
+    #        SAT_instance.upper(), SAT_instance.upper(), seed), bidder_id,
+     #   num_train_data=num_train_data, normalize=normalize, seed=seed, normalize_factor=normalize_factor)
+    train_dataset, val_dataset, test_dataset, dataset_info = generate_pt_data(MicroGrid_instance=MicroGrid_instance,
+                                                                                num_train_data=num_train_data,
+                                                                                seed = seed,
+                                                                                bidder_id = bidder_id,
+                                                                                normalize = normalize,
+                                                                                normalize_factor = normalize_factor)
+
     return train_dataset, val_dataset, test_dataset, dataset_info
 
 
@@ -256,7 +266,7 @@ def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch
     random.seed(seed)
 
     train_dataset, val_dataset, test_dataset, dataset_info = \
-        get_training_data(SAT_instance=SAT_instance, num_train_data=num_train_data,
+        get_training_data(MicroGrid_instance=SAT_instance, num_train_data=num_train_data,
                           seed=seed, bidder_id=bidder_id, layer_type=layer_type, normalize=normalize,
                           normalize_factor=normalize_factor)
 

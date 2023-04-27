@@ -18,6 +18,7 @@ class HouseHold():
         self.node =self.param["grid"]["node"]
         self.data = None
         self.result = None
+        self.horizon = 3
 
     def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path):
         
@@ -40,7 +41,7 @@ class HouseHold():
         df = pd.concat([data_generation, data_consumption, data_fcr_price, data_spot_price], axis=1)
         
         df["non_served_cost"] = self.param["consumption"]["cost_of_non_served_energy"]
-        self.generator_data = ( df.iloc[24*i:24*(i+1), : ].reset_index(drop=True) for i in range(365) )
+        self.generator_data = ( df.iloc[self.horizon*i:self.horizon*(i+1), : ].reset_index(drop=True) for i in range(365) )
         
         self.data = next(self.generator_data)
 
@@ -217,7 +218,6 @@ class HouseHold():
 
  
     def get_welfare(self):
-        
         return sum_product(self.model.NonServedCost, self.model.Non_served_consumption)()
 
     def get_spot_price(self):
@@ -244,7 +244,10 @@ class HouseHold():
             SW.append((capa,self.get_welfare()))
         return SW
     
-
+    def get_optimal_welfare(self):
+        self.build_milp()
+        self.run_milp()
+        return self.model.objective.expr()
     # Display results 
 
     def display_planning(self):
@@ -275,6 +278,7 @@ class Microgrid():
         self.grid_connection = self.param["grid_connection"]
         self.grid_nodes = self.param["nodes"]
         self.N_nodes = len(self.grid_nodes)
+        self.horizon = self.households[0].horizon
     
     def create_mg(households, param):
         return Microgrid(households, param)
@@ -378,20 +382,25 @@ class Microgrid():
         return [house.ID for house in self.households]
 
     def get_good_ids(self):
-        return [i for i in range(24)]
+        return [i for i in range(self.horizon)]
     
     def get_uniform_random_bids(self, bidder_id,number_of_bids,seed=None):
         if seed is not None:
             np.random.seed(seed)
-        bids =[np.random.rand(24)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
+        bids =[np.random.randint(self.households[bidder_id].param["consumption"]["max_consumption"],size=self.horizon) for i in range(number_of_bids)]
+        # bids = [np.random.rand(self.horizon)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
         res = []
-        for bid in bids:
+        for bid in tqdm(bids):
             val = self.calculate_value(bidder_id,bid)
-            print(val)
             bid = np.append(bid,val)
             res.append(bid)
         return res
 
+    def generate_dataset(self,bidder_id):
+        bids = self.get_uniform_random_bids(bidder_id,1000)
+        df = pd.DataFrame(bids)
+        df.rename(columns ={self.horizon:"value"}, inplace=True)
+        df.to_csv(f"data/cost_function/dataset_{bidder_id}.csv")
 
     def get_random_feasible_bundle_set(self):
         self.build_model()
@@ -420,6 +429,8 @@ class Microgrid():
 
 
     def calculate_value(self,bidder_id,bundle):
+        # return np.sum(bundle**3)
+
         self.households[bidder_id].build_milp()
         def grid_exchange_fix(model, i):
             return model.Grid_power[i] == bundle[i]
@@ -451,4 +462,5 @@ if __name__=="__main__":
     MG.build_model()
     MG.run_model()
     MG.display_gridflows()
+    print(MG.households[0].get_optimal_welfare())
 

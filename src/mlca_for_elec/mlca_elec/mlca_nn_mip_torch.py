@@ -515,9 +515,10 @@ class NN_MIP_TORCH:
         # linear matrix constraints: Wz^(i-1)+b = z^(i)-s^(i)
         for i in range(0, self.N):
             self._add_matrix_constraints(i, verbose=verbose)
+        
         # allocation constraints for x^i's
         for j in range(0, self.M):
-            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 1),
+            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 10),
                                     ctname="FeasabilityCT_x_{}".format(j))
         # add bidder specific constraints
         if bidder_specific_constraints is not None:

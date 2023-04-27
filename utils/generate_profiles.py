@@ -18,8 +18,8 @@ def generate_random_profile(template, ID = None):
 
     # Battery
     template["battery"]["power"] = np.random.randint(1,5)
-    template["battery"]["enabled"] = bool(np.random.randint(0,2))
-    template["battery"]["fcr_enabled"] = bool(np.random.randint(0,2))
+    template["battery"]["enabled"] = False # bool(np.random.randint(0,2))
+    template["battery"]["fcr_enabled"] =False # bool(np.random.randint(0,2))
 
     # Grid 
     template["grid"]["node"] = int(np.random.choice(listing_file["consumption_node"]))

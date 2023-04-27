@@ -1,5 +1,5 @@
 import pickle
-
+import pandas as pd
 import numpy as np
 import torch
 
@@ -71,6 +71,38 @@ def convert_bundle_space_to_pt_data(path, bidder_id, normalize, normalize_factor
                    y[num_train_data:int(len(X) * 0.2 + num_train_data)]
     X_test, y_test = X[int(len(X) * 0.2 + num_train_data):], \
                      y[int(len(X) * 0.2 + num_train_data):]
+    if normalize:
+        y_train_max = max(y_train) * (1 / normalize_factor)
+        dataset_info['target_max'] = y_train_max
+        y_train, y_val, y_test = y_train / y_train_max, y_val / y_train_max, y_test / y_train_max
+    else:
+        dataset_info['target_max'] = 1.0
+
+    train = torch.utils.data.TensorDataset(torch.from_numpy(X_train),
+                                           torch.from_numpy(y_train.reshape(-1, 1)))
+    val = torch.utils.data.TensorDataset(torch.from_numpy(X_val),
+                                         torch.from_numpy(y_val.reshape(-1, 1)))
+    test = torch.utils.data.TensorDataset(torch.from_numpy(X_test),
+                                          torch.from_numpy(y_test.reshape(-1, 1)))
+    return train, val, test, dataset_info
+
+def generate_pt_data(MicroGrid_instance, num_train_data, seed, bidder_id, normalize, normalize_factor):
+    house = MicroGrid_instance.households[bidder_id]
+    dataset_info = {'N': len(MicroGrid_instance.households), 'M':MicroGrid_instance.horizon, 'world': 'MicroGrid'} # TODO: fix this
+    # bids = np.asarray(MicroGrid_instance.get_uniform_random_bids(bidder_id, 4*num_train_data, seed))
+    bids = pd.read_csv("data\cost_function\dataset_0.csv").to_numpy()[:,1:]
+    print(bids.shape)
+    X = bids[:,:-1].astype(np.float32)
+    y = bids[:,-1].astype(np.float32)
+
+    X_train, y_train = X[:num_train_data], \
+                       y[:num_train_data]
+    X_val, y_val = X[num_train_data:int(len(X) * 0.2 + num_train_data)], \
+                   y[num_train_data:int(len(X) * 0.2 + num_train_data)]
+    X_test, y_test = X[int(len(X) * 0.2 + num_train_data):], \
+                     y[int(len(X) * 0.2 + num_train_data):]
+    
+    print(X_train.shape, y_train.shape, X_val.shape, y_val.shape, X_test.shape, y_test.shape)
     if normalize:
         y_train_max = max(y_train) * (1 / normalize_factor)
         dataset_info['target_max'] = y_train_max

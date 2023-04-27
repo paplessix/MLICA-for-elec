@@ -25,6 +25,8 @@ data
 solver
 tags
 config
+runs
+logs
 
 # Package files
 *.egg
