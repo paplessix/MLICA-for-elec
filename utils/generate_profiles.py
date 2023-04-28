@@ -18,7 +18,7 @@ def generate_random_profile(template, ID = None):
 
     # Battery
     template["battery"]["power"] = np.random.randint(1,5)
-    template["battery"]["enabled"] = False # bool(np.random.randint(0,2))
+    template["battery"]["enabled"] = True # bool(np.random.randint(0,2))
     template["battery"]["fcr_enabled"] =False # bool(np.random.randint(0,2))
 
     # Grid 

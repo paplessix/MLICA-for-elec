@@ -18,7 +18,7 @@ class HouseHold():
         self.node =self.param["grid"]["node"]
         self.data = None
         self.result = None
-        self.horizon = 3
+        self.horizon = 10
 
     def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path):
         
@@ -143,19 +143,21 @@ class HouseHold():
         def SoC_bound_lower(model, i):
             return model.SoC[i] >= self.param["battery"]["min_soc"]*(1-model.FCR_on[i])+ model.FCR_on[i]*self.param["battery"]["soc_fcr"]
         
-
+        def SoC_initialization(model):
+            return model.SoC[model.Period.at(1)] == self.param["battery"]["init_soc"]
         def SoC_termination(model):
             return model.SoC[model.Period.at(-1)] == self.param["battery"]["init_soc"]
         
 
+
         def battery_charge_on(model, i):
-            return model.Charge_power[i] +self.model.FCR[i]*1.25 <= model.charge_on[i] * self.param["battery"]["power"]*self.model.battery_enabled
+            return -model.Charge_power[i] + self.model.FCR[i]*1.25 <= model.charge_on[i] * self.param["battery"]["power"]*self.model.battery_enabled
         
         def battery_discharge_on(model, i):
-            return model.Discharge_power[i]+self.model.FCR[i]*1.25 <= model.discharge_on[i] * self.param["battery"]["power"]*self.model.battery_enabled
+            return model.Discharge_power[i] + self.model.FCR[i]*1.25 <= model.discharge_on[i] * self.param["battery"]["power"]*self.model.battery_enabled
               
         def battery_twosided_constraint(model, i):
-            return model.Charge_power[i] + model.Discharge_power[i] <=1
+            return model.charge_on[i] + model.discharge_on[i] <=1
 
 
         # FCR related constraints defintions
@@ -175,6 +177,7 @@ class HouseHold():
         # BESS related constraints
         
         self.model.SoC_definition = Constraint(self.model.Period, rule=SoC_definition)
+        self.model.SoC_initialization = Constraint( rule=SoC_initialization)
         self.model.SoC_termination = Constraint( rule=SoC_termination)
         self.model.charge_on_cst = Constraint(self.model.Period, rule=battery_charge_on)
         self.model.discharge_on_cst = Constraint(self.model.Period, rule=battery_discharge_on)
@@ -200,7 +203,7 @@ class HouseHold():
         opt.solve(self.model)
 
         # unpack results
-        index,charge_power, discharge_power, SoC, Grid_power,non_served, fcr_power= ([] for i in range(7))
+        index,charge_power, discharge_power, SoC, Grid_power,non_served, fcr_power,charge_on,discharge_on= ([] for i in range(9))
 
         for i in self.model.Period:
             index.append(i)
@@ -210,11 +213,12 @@ class HouseHold():
             Grid_power.append(self.model.Grid_power[i].value)
             non_served.append(max(0,self.model.Non_served_consumption[i].value))
             fcr_power.append(self.model.FCR[i].value)
+            charge_on.append(self.model.charge_on[i].value)
+            discharge_on.append(self.model.discharge_on[i].value)
 
         self.result = pd.concat((self.data,pd.DataFrame({"index":index,'SoC':SoC, 'charge_power':charge_power,
-                           'discharge_power':discharge_power, 'Grid_power':Grid_power,"non_served":non_served,"fcr_power":fcr_power}).set_index("index")), axis=1)
+                           'discharge_power':discharge_power, 'Grid_power':Grid_power,"non_served":non_served,"fcr_power":fcr_power,"charge_on":charge_on,"discharge_on":discharge_on}).set_index("index")), axis=1)
         
-
 
  
     def get_welfare(self):
@@ -388,7 +392,7 @@ class Microgrid():
         if seed is not None:
             np.random.seed(seed)
         bids =[np.random.randint(self.households[bidder_id].param["consumption"]["max_consumption"],size=self.horizon) for i in range(number_of_bids)]
-        # bids = [np.random.rand(self.horizon)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
+        #bids = [np.random.rand(self.horizon)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
         res = []
         for bid in tqdm(bids):
             val = self.calculate_value(bidder_id,bid)

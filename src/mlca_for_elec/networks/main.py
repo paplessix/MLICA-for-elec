@@ -154,13 +154,18 @@ def test(model, device, loader, valid_true, epoch, dataset_info, loss_func, plot
     if plot:
         dat_min, dat_max = min(min(preds), min(targets)), \
                            max(max(preds), max(targets))
-        plt.figure(figsize=(4, 3))
-        plt.scatter(np.array(targets), np.array(preds), s=1, alpha=1)
-        plt.plot([dat_min, dat_max], [dat_min, dat_max], 'y')
-        plt.ylabel('Pred')
-        plt.xlabel('True')
-        plt.title('Ep: {} | kt: {:.2f} | r: {:.2f} | mae: {:.4f}'.format(
+        fig, ax =  plt.subplots(2,1,figsize=(10,5), height_ratios=[3,1])
+        ax[0].scatter(np.array(targets), np.array(preds), s=1, alpha=0.5)
+        ax[0].plot([dat_min, dat_max], [dat_min, dat_max], 'y')
+        ax[0].set_ylabel('Pred')
+        ax[0].set_xlabel('True')
+        ax[0].set_title('Ep: {} | kt: {:.2f} | r: {:.2f} | mae: {:.4f}'.format(
             epoch, metrics['kendall_tau'], metrics['r'], metrics['mae']))
+        
+        ax[1].hist(np.array(targets), alpha=0.5, bins = 50, label = "targets")
+        ax[1].hist(np.array(preds), alpha=0.5, bins = 50, label = "preds")
+        ax[1].legend()
+
         plt.tight_layout()
         plt.show()
         plt.close()

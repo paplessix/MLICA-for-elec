@@ -42,22 +42,22 @@ if __name__=="__main__":
         spot_price_path = "data/spot_price/2020.csv"
         fcr_price_path = "data/fcr_price/random_fcr.csv"
         house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-        house.next_data()
-        house.next_data()
+        for i in range(205):
+            house.next_data()
         houses.append(house)
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
-
+    print(houses[0].data['consumption'])
     microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
-    #MG.generate_dataset(0)
+    # MG.generate_dataset(0)
     config_dict = {"batch_size": 1,
-          "epochs":100,
+          "epochs":150,
           "l2": 1e-12,
           "loss_func": "F.l1_loss",
           "lr": 0.001,
           "num_hidden_layers": 3,
-          "num_neurons": 60,
+          "num_neurons": 70,
           "optimizer": "Adam"
         }
 
@@ -66,7 +66,7 @@ if __name__=="__main__":
         config_dict, seed=0, MicroGrid_instance=MG, bidder_id=1,
         num_train_data=100, layer_type="PlainNN",
         normalize=True,
-        normalize_factor=500)
+        normalize_factor=100)
     train_logs = logs['metrics']['train'][config_dict['epochs']]
     val_logs = logs['metrics']['val'][config_dict['epochs']]
     test_logs = logs['metrics']['test'][config_dict['epochs']]
