@@ -1,5 +1,5 @@
-from env.env import *
-from env.market import *
+from mlca_for_elec.env.env import *
+from mlca_for_elec.env.market import *
 
 import matplotlib.pyplot as plt
 import numpy as np

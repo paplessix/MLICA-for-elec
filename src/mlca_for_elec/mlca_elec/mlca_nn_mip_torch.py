@@ -288,7 +288,7 @@ class NN_MIP_TORCH:
                 # decision variables
                 if v == 0:
                     self.z.update(
-                        {(i, 0, j): self.Mip.binary_var(name="x({})_{}".format(i, j)) for j in
+                        {(i, 0, j): self.Mip.continuous_var(name="x({})_{}".format(i, j)) for j in
                          range(0, J)})  # binary variables for allocation
                 self.z.update({(i, layer, r): self.Mip.continuous_var(name="z({},{})_{}".format(i, layer, r)) for r in
                                range(0, R)})  # output value variables after activation
@@ -424,7 +424,7 @@ class NN_MIP_TORCH:
                 # decision variables
                 if v == 0:
                     self.z.update(
-                        {(i, 0, j): self.Mip.binary_var(name="x({})_{}".format(i, j)) for j in
+                        {(i, 0, j): self.Mip.continuous_var(name="x({})_{}".format(i, j)) for j in
                          range(0, J)})  # binary variables for allocation
                 self.z.update(
                     {(i, layer, r): self.Mip.continuous_var(lb=0, name="z({},{})_{}".format(i, layer, r)) for r in
@@ -505,6 +505,7 @@ class NN_MIP_TORCH:
     def initialize_mip(self,
                        verbose=False,
                        bidder_specific_constraints=None,
+                       spot_prices = None,
                        GSVM_specific_constraints=False,
                        national_circle_complement=None):
         # pay attention here order is important, thus first sort the keys of bidders!
@@ -524,31 +525,10 @@ class NN_MIP_TORCH:
         if bidder_specific_constraints is not None:
             self._add_bidder_specific_constraints(bidder_specific_constraints)
 
-        #  GSVM specific allocation constraints for regional and local bidder
-        if GSVM_specific_constraints and national_circle_complement is not None:
-            for i in range(0, self.N):
-                # regional bidder
-                if self.sorted_bidders[i] in ['Bidder_0', 'Bidder_1', 'Bidder_2', 'Bidder_3', 'Bidder_4', 'Bidder_5']:
-                    logging.debug('Adding GSVM specific constraints for regional {}.'.format(self.sorted_bidders[i]))
-                    self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for j in range(0, self.M)) <= 4),
-                                            ctname="GSVM_CT_RegionalBidder{}".format(i))
-                # national bidder
-                elif self.sorted_bidders[i] in ['Bidder_6']:
-                    logging.debug(
-                        'Adding GSVM specific constraints for national {} with national circle complement {}.'.format(
-                            self.sorted_bidders[i], national_circle_complement))
-                    self.Mip.add_constraint(
-                        ct=(self.Mip.sum(self.z[(i, 0, j)] for j in national_circle_complement) == 0),
-                        ctname="GSVM_CT_NationalBidder{}".format(i))
-                else:
-                    raise NotImplementedError(
-                        'GSVM only implmented in default version for Regional Bidders:[Bidder_0,..,Bidder_5] and National Bidder: [Bidder_6]. You entered {}'.format(
-                            self.sorted_bidders[i]))
-
         # add objective: sum of 1dim outputs of neural network per bidder z[(i,K_i,0)]
-        objective = self.Mip.sum(
-            self.Models[self.sorted_bidders[i]]._target_max * self.z[
-                (i, self.Models[self.sorted_bidders[i]]._num_hidden_layers + 1, 0)] for i in range(0, self.N))
+        objective = (self.Mip.sum(
+            self.Models[self.sorted_bidders[i]]._target_max * self.z[(i, self.Models[self.sorted_bidders[i]]._num_hidden_layers + 1, 0)] for i in range(0, self.N))
+                    - self.Mip.scal_prod([self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) for j in range(0, self.M)], spot_prices))
         self.Mip.maximize(objective)
         logging.info('MIP initialized')
 

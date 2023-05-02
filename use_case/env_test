@@ -1,6 +1,7 @@
 import os 
 from mlca_for_elec.env.env import Microgrid, HouseHold
 import json
+import numpy as np
 
 
 print("Start loading household profiles")
@@ -25,9 +26,9 @@ print("Start compute social welfare")
 microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
 house = MG.households[0]
-for i in range(100):
+for i in range(103):
     house.next_data()
     house.next_data()
-house.build_milp()
-house.run_milp()
-house.display_planning()
+test =np.zeros(10)
+test[0] = 3
+print(MG.calculate_value(0,test))

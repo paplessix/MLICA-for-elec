@@ -124,11 +124,13 @@ def initial_bids_mlca_unif(MicroGrid_instance, number_initial_bids, bidder_names
         # i.e., for regional bidders only buzndles of up to size 4 are sampled, for national bidders only bundles that
         # contain items from the national circle are sampled.
         # Remark: SATS does not ensure that bundles are unique, this needs to be taken care exogenously.
+        print(bidder, key_to_int(bidder))
         D = np.asarray(MicroGrid_instance.get_uniform_random_bids(bidder_id=key_to_int(bidder),
                                                                      number_of_bids=number_initial_bids,
                                                                      seed=bidder_seeds[i]))
         # add null bundle already here*
         null = np.zeros(D.shape[1]) # add null bundle
+
         null[-1] = MicroGrid_instance.calculate_value( bidder_id=key_to_int(bidder),bundle = null[:-1]) # TODO
         D = np.append(D, null.reshape(1, -1) , axis=0)
         # get unique ones if sampled equal bundles
@@ -139,7 +141,7 @@ def initial_bids_mlca_unif(MicroGrid_instance, number_initial_bids, bidder_names
                                                                            number_of_bids=1,
                                                                            seed=seed_additional_bundle))
             D = np.vstack((D, tmp))
-            D = MicroGrid_instance.get_random_feasible_bundle_set()
+            # D = MicroGrid_instance.get_random_feasible_bundle_set() #TODO:fix
             unique_indices = np.sort(np.unique(D[:, :-1], return_index=True, axis=0)[1])
             if seed_additional_bundle is not None: seed_additional_bundle += 1
         

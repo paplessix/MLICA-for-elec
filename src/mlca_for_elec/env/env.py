@@ -15,10 +15,11 @@ class HouseHold():
     def __init__(self, param) -> None:
         self.param = param
         self.ID = self.param["ID"]
+        print(self.ID)
         self.node =self.param["grid"]["node"]
         self.data = None
         self.result = None
-        self.horizon = 10
+        self.horizon = 12
 
     def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path):
         
@@ -78,7 +79,7 @@ class HouseHold():
 
     def cost_function(self,model):
         # cost =sum_product(model.SpotPrice, model.Grid_power) + sum_product(model.NonServedCost, model.Non_served_consumption) - sum_product(model.FCRPrice, model.FCR)
-        cost = sum_product(model.NonServedCost, model.Non_served_consumption) 
+        cost = +sum_product(model.NonServedCost, model.Non_served_consumption) - np.dot(model.Consumption,model.NonServedCost)
         return cost
     
     #    Run 
@@ -401,7 +402,7 @@ class Microgrid():
         return res
 
     def generate_dataset(self,bidder_id):
-        bids = self.get_uniform_random_bids(bidder_id,1000)
+        bids = self.get_uniform_random_bids(bidder_id,300)
         df = pd.DataFrame(bids)
         df.rename(columns ={self.horizon:"value"}, inplace=True)
         df.to_csv(f"data/cost_function/dataset_{bidder_id}.csv")
@@ -430,10 +431,17 @@ class Microgrid():
         pass
     def get_model_name(self):
         return "GridModel"
+    
+    def get_spot_price(self):
+        for i, house in enumerate(self.households): # TODO : fix
+            if i == 0: 
+                house_0 = house
+            assert (house.get_spot_price() == house_0.get_spot_price()).all()
 
+        return house_0.get_spot_price()
 
     def calculate_value(self,bidder_id,bundle):
-        # return np.sum(bundle**3)
+        # return np.dot(0.2*np.ones(len(bundle)),bundle)
 
         self.households[bidder_id].build_milp()
         def grid_exchange_fix(model, i):
@@ -441,7 +449,7 @@ class Microgrid():
         self.households[bidder_id].model.grid_exchange_fix = Constraint(self.households[bidder_id].model.Period, rule=grid_exchange_fix)
         self.households[bidder_id].run_milp()
         self.households[bidder_id].model.objective.expr()
-        return self.households[bidder_id].model.objective.expr()
+        return  - self.households[bidder_id].model.objective.expr()
             
 
 if __name__=="__main__":

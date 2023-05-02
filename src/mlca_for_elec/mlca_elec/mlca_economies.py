@@ -321,7 +321,7 @@ class MLCA_Economies:
         else:  # If argmax bundle has NOT already been queried
             self.economy_status[economy_key] = True  # set status of economy to true
             self.number_of_optimization['normal'] += 1
-            return (self.argmax_allocation[economy_key][active_bidder][0])  # return regular argmax bundle
+            return (self.argmax_allocation[economy_key][active_bidder][0])  # return regular argmax bundleF
 
     def estimation_step(self, economy_key):
         logging.info('ESTIMATION STEP')
@@ -401,12 +401,14 @@ class MLCA_Economies:
             if not self.MIP_parameters['mip_bounds_tightening']:
                 X.initialize_mip(verbose=False,
                                  bidder_specific_constraints=bidder_specific_constraints,
+                                 spot_prices=self.SATS_auction_instance.get_spot_price(),
                                  GSVM_specific_constraints=GSVM_specific_constraints,  # NEW
                                  national_circle_complement=national_circle_complement)  # NEW
             elif self.MIP_parameters['mip_bounds_tightening'] == 'IA':
                 X.tighten_bounds_IA(upper_bound_input=[1] * self.M, lower_bound_input=[0] * self.M)
                 X.initialize_mip(verbose=False,
                                  bidder_specific_constraints=bidder_specific_constraints,
+                                 spot_prices=self.SATS_auction_instance.get_spot_price(),
                                  GSVM_specific_constraints=GSVM_specific_constraints,  # NEW
                                  national_circle_complement=national_circle_complement)  # NEW
             elif self.MIP_parameters['mip_bounds_tightening'] == 'LP':
@@ -414,6 +416,7 @@ class MLCA_Economies:
                 X.tighten_bounds_LP(upper_bound_input=[1] * self.M, lower_bound_input=[0] * self.M)
                 X.initialize_mip(verbose=False,
                                  bidder_specific_constraints=bidder_specific_constraints,
+                                 spot_prices=self.SATS_auction_instance.get_spot_price(),
                                  GSVM_specific_constraints=GSVM_specific_constraints,  # NEW
                                  national_circle_complement=national_circle_complement)  # NEW
             try:
