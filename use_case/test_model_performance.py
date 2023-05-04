@@ -57,7 +57,7 @@ if __name__=="__main__":
           "loss_func": "F.l1_loss",
           "lr": 0.0001,
           "num_hidden_layers":5,
-          "num_neurons": 500,
+          "num_neurons": 300,
           "optimizer": "Adam"
         }
 

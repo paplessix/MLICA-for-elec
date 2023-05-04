@@ -19,7 +19,7 @@ class HouseHold():
         self.node =self.param["grid"]["node"]
         self.data = None
         self.result = None
-        self.horizon = 12
+        self.horizon = 24
 
     def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path):
         
@@ -336,7 +336,7 @@ class Microgrid():
     
     def run_model(self):
         opt = SolverFactory('glpk')
-        result_obj = opt.solve(self.model, tee=True)
+        result_obj = opt.solve(self.model)
         result_dic = {}
         for i,house in enumerate(self.households):
             result_dic[i]=[]
@@ -360,6 +360,15 @@ class Microgrid():
 
     def get_optimal_welfare():
         pass
+
+    def get_efficient_allocation (self) :
+        self.build_model()
+        self.run_model()
+        optimal_welfare = self.model.obj.expr()
+        optimal_allocation = self.consumption
+        print(optimal_allocation, optimal_welfare)
+        
+        return optimal_allocation, - optimal_welfare
 
     def display_gridflows(self):
         fig, ax = plt.subplots(self.N_nodes,self.N_nodes)
@@ -402,7 +411,7 @@ class Microgrid():
         return res
 
     def generate_dataset(self,bidder_id):
-        bids = self.get_uniform_random_bids(bidder_id,300)
+        bids = self.get_uniform_random_bids(bidder_id,1000)
         df = pd.DataFrame(bids)
         df.rename(columns ={self.horizon:"value"}, inplace=True)
         df.to_csv(f"data/cost_function/dataset_{bidder_id}.csv")
@@ -474,5 +483,5 @@ if __name__=="__main__":
     MG.build_model()
     MG.run_model()
     MG.display_gridflows()
-    print(MG.households[0].get_optimal_welfare())
+    print(MG.get_efficient_allocation()[1])
 

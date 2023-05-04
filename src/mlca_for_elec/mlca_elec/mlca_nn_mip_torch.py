@@ -161,7 +161,7 @@ class NN_MIP_TORCH:
         # set the optimal allocation
         for i in range(0, self.N):
             for j in range(0, self.M):
-                self.x_star[i, j] = int(self.z[(i, 0, j)].solution_value)
+                self.x_star[i, j] = self.z[(i, 0, j)].solution_value
         return Sol, mip_log
 
     def log_solve_details(self,
@@ -524,6 +524,7 @@ class NN_MIP_TORCH:
         # add bidder specific constraints
         if bidder_specific_constraints is not None:
             self._add_bidder_specific_constraints(bidder_specific_constraints)
+            pass
 
         # add objective: sum of 1dim outputs of neural network per bidder z[(i,K_i,0)]
         objective = (self.Mip.sum(

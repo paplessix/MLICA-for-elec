@@ -90,7 +90,7 @@ def generate_pt_data(MicroGrid_instance, num_train_data, seed, bidder_id, normal
     house = MicroGrid_instance.households[bidder_id]
     dataset_info = {'N': len(MicroGrid_instance.households), 'M':MicroGrid_instance.horizon, 'world': 'MicroGrid'} # TODO: fix this
     #bids = np.asarray(MicroGrid_instance.get_uniform_random_bids(bidder_id, 4*num_train_data, seed))
-    bids = pd.read_csv("../data\cost_function\dataset_0.csv").to_numpy()[:,1:]
+    bids = pd.read_csv("data\cost_function\dataset_0.csv").to_numpy()[:,1:]
     print(bids.shape)
     X = bids[:,:-1].astype(np.float32)
     y = bids[:,-1].astype(np.float32)
