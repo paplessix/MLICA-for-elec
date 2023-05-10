@@ -193,7 +193,6 @@ def random_bids_mlca_unif(SATS_auction_instance, number_random_bids, bidder_name
     i = 0
     for bidder in bidder_names:
         logging.debug('Random Bids for: %s using seed %s', bidder, bidder_seeds[i])
-        logging.disable(level=CRITICAL)
         # DEPRECATED VERSION
         # D = unif_random_bids(value_model=SATS_auction_instance, bidder_id=key_to_int(bidder), n=number_random_bids)
 
@@ -216,7 +215,7 @@ def random_bids_mlca_unif(SATS_auction_instance, number_random_bids, bidder_name
             if seed_additional_bundle is not None: seed_additional_bundle += 1
 
         D = D[unique_indices, :]
-        logging.disable(logging.NOTSET)
+
         logging.debug('Shape %s', D.shape)
         i += 1
 
@@ -264,7 +263,6 @@ def format_solution_mip_new(Mip, elicited_bids, bidder_names, fitted_scaler):
             logging.debug(value)
             logging.debug('---------------------------------------------')
         bidder = bidder_names[index[0]]
-        print(bundle)
         Z[bidder] = {'good_ids': bundle, 'value': value}
     return (Z)
 

@@ -29,10 +29,11 @@ def weights_init(m):
 def compute_metrics(preds, targets):
     metrics = {}
     kendall_tau = scipy_stats.kendalltau(preds, targets).correlation
-    if sum(preds)== 0 :
-        r = 1
-    else: 
+    try :
         r = scipy_stats.linregress(preds, targets)[2] #TODO
+
+    except:
+        r = 0
     metrics['r'] = r
     metrics['kendall_tau'] = kendall_tau
     mae = sklearn.metrics.mean_absolute_error(preds, targets)
@@ -42,7 +43,7 @@ def compute_metrics(preds, targets):
 
 class Net(nn.Module):
     def __init__(self, input_dim: int, num_hidden_layers: int, num_units: int, layer_type: str, target_max: float,
-                 ts: float = 1.0):
+                 ts: float = 10.0):
         super(Net, self).__init__()
         if layer_type == 'PlainNN':
             fc_layer = torch.nn.Linear
@@ -134,7 +135,6 @@ def test(model, device, loader, valid_true, epoch, dataset_info, loss_func, plot
 
     preds, targets = (np.array(preds) * dataset_info['target_max']).tolist(), \
                      (np.array(targets) * dataset_info['target_max']).tolist()
-    print(preds)
     metrics = {}
 
     # Check 0-to-0 mapping
@@ -230,7 +230,7 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
     # Transform the weights
     model.transform_weights()
     if val_dataset is not None:
-        metrics['val'][epoch] = test(model, device, val_loader, valid_true=True, plot=True, epoch=epoch,
+        metrics['val'][epoch] = test(model, device, val_loader, valid_true=True, plot=False, epoch=epoch,
                                      log_path=None, dataset_info=config, loss_func=loss_func)
 
     if eval_test:

@@ -68,7 +68,7 @@ for house in MG.households:
     for key, value in base.items():
         NN_parameters[f"Bidder_{house.ID}"][key] = value
     
-    NN_parameters[f"Bidder_{house.ID}"]['layer_type'] = 'PlainNN'
+    NN_parameters[f"Bidder_{house.ID}"]['layer_type'] = 'CALayerReLUProjected'
 
     NN_parameters[f"Bidder_{house.ID}"]['num_hidden_units'] = int(max(1, np.round(
         NN_parameters[f"Bidder_{house.ID}"]['num_neurons'] / NN_parameters[f"Bidder_{house.ID}"]['num_hidden_layers'])))

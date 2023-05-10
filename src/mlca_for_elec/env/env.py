@@ -21,8 +21,9 @@ class HouseHold():
         self.result = None
         self.horizon = 24
 
-    def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path):
-        
+    def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path, profile_path= None):
+
+        self.profile_path = profile_path
         if self.param["generation"]["type"] == "wind":
             preprocessor_generation = preprocessor_wind
             column_name ="WS10m"
@@ -111,7 +112,7 @@ class HouseHold():
         self.model.Charge_power = Var(self.model.Period,initialize=0, bounds=( -self.param["battery"]["power"],0))
         self.model.Discharge_power = Var(self.model.Period,initialize=0, bounds=(0, self.param["battery"]["power"]))
         self.model.Grid_power = Var(self.model.Period, bounds=(0, np.inf))
-        self.model.Non_served_consumption = Var(self.model.Period, bounds=(0, np.inf))
+        self.model.Non_served_consumption = Var(self.model.Period,initialize= 0, bounds=(0, np.inf))
         self.model.Curtailed_generation = Var(self.model.Period, initialize=0, bounds=(0, np.inf))
         self.model.charge_on = Var(self.model.Period, within=Binary)
         self.model.discharge_on= Var(self.model.Period, within=Binary)
@@ -200,6 +201,7 @@ class HouseHold():
 
     def run_milp(self):
         opt = SolverFactory("glpk", executable="solver\glpk\glpsol.exe")
+        # opt = SolverFactory("cplex")
         opt.options['tmlim'] = 5
         opt.solve(self.model)
 
@@ -212,7 +214,7 @@ class HouseHold():
             discharge_power.append(self.model.Discharge_power[i].value)
             SoC.append(self.model.SoC[i].value)
             Grid_power.append(self.model.Grid_power[i].value)
-            non_served.append(max(0,self.model.Non_served_consumption[i].value))
+            non_served.append(self.model.Non_served_consumption[i].value)
             fcr_power.append(self.model.FCR[i].value)
             charge_on.append(self.model.charge_on[i].value)
             discharge_on.append(self.model.discharge_on[i].value)
@@ -220,7 +222,6 @@ class HouseHold():
         self.result = pd.concat((self.data,pd.DataFrame({"index":index,'SoC':SoC, 'charge_power':charge_power,
                            'discharge_power':discharge_power, 'Grid_power':Grid_power,"non_served":non_served,"fcr_power":fcr_power,"charge_on":charge_on,"discharge_on":discharge_on}).set_index("index")), axis=1)
         
-
  
     def get_welfare(self):
         return sum_product(self.model.NonServedCost, self.model.Non_served_consumption)()
@@ -401,7 +402,7 @@ class Microgrid():
     def get_uniform_random_bids(self, bidder_id,number_of_bids,seed=None):
         if seed is not None:
             np.random.seed(seed)
-        bids =[np.random.randint(self.households[bidder_id].param["consumption"]["max_consumption"],size=self.horizon) for i in range(number_of_bids)]
+        bids =[np.random.randint(self.households[bidder_id].data.consumption.max()*1.5,size=self.horizon) for i in range(number_of_bids)]
         #bids = [np.random.rand(self.horizon)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
         res = []
         for bid in tqdm(bids):
@@ -424,7 +425,7 @@ class Microgrid():
             return sum(sum_product(np.random.rand(len(model.__getattribute__(f"house_{i}").Period))/(-10),model.__getattribute__(f"house_{i}").Grid_power) for i in range(len(self.households))) 
         self.model.objective = Objective(rule = random_objective_rule, sense=minimize)
         opt = SolverFactory('glpk')
-        result_obj = opt.solve(self.model)
+        result_obj = opt.solve(self.model).write()
         opt.options['glpk'] = dict(msg_lev='GLP_MSG_OFF')
         result_dic = {}  
         for i,house in enumerate(self.households):
@@ -450,8 +451,6 @@ class Microgrid():
         return house_0.get_spot_price()
 
     def calculate_value(self,bidder_id,bundle):
-        # return np.dot(0.2*np.ones(len(bundle)),bundle)
-
         self.households[bidder_id].build_milp()
         def grid_exchange_fix(model, i):
             return model.Grid_power[i] == bundle[i]

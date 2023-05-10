@@ -4,7 +4,7 @@ import random
 import os 
 import numpy as np
 import torch
-
+import matplotlib.pyplot as plt
 from mlca_for_elec.networks.main import eval_config
 from mlca_for_elec.env.env import Microgrid, HouseHold
 
@@ -48,9 +48,11 @@ if __name__=="__main__":
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
     print(houses[0].data['consumption'])
+    houses[0].data['consumption'].plot(xlabel="Time", ylabel="Consumption (kWh)")
+    plt.show()
     microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
-    # MG.generate_dataset(0)
+    MG.generate_dataset(0)
     config_dict = {"batch_size": 1,
           "epochs":300,
           "l2": 1e-2,
@@ -64,7 +66,7 @@ if __name__=="__main__":
     print('Selected hyperparameters', config_dict)
     model, logs = evaluate_network(
         config_dict, seed=0, MicroGrid_instance=MG, bidder_id=1,
-        num_train_data=50, layer_type="CALayerReLUProjected",
+        num_train_data=50, layer_type="PlainNN",
         normalize=True,
         normalize_factor=1)
     train_logs = logs['metrics']['train'][config_dict['epochs']]
