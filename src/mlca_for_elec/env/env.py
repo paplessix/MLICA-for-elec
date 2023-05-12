@@ -412,6 +412,13 @@ class Microgrid():
         return res
 
     def generate_dataset(self,bidder_id):
+        print("-----------------------------------")
+        print("Generating dataset")
+        print("-----------------------------------")
+        print(f"Generating dataset for bidder {bidder_id}")
+        print("Optimal allocation is : ")
+        print(self.households[bidder_id].get_optimal_welfare())
+
         bids = self.get_uniform_random_bids(bidder_id,1000)
         df = pd.DataFrame(bids)
         df.rename(columns ={self.horizon:"value"}, inplace=True)

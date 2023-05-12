@@ -41,7 +41,7 @@ class NN_MIP_TORCH:
         self.mu = {}  # MIP variable: see paper
         self.s = {}  # MIP variable: see paper
 
-        self.x_star = np.ones(shape=(self.N, self.M), dtype=int) * (-1)  # optimal allocation (-1=not yet solved)
+        self.x_star = np.ones(shape=(self.N, self.M), dtype=np.float64) * (-1)  # optimal allocation (-1=not yet solved) #TODO: to change
         self.L = L  # global big-M variable: see paper
         self.soltime = None  # timing
 
@@ -161,6 +161,7 @@ class NN_MIP_TORCH:
         # set the optimal allocation
         for i in range(0, self.N):
             for j in range(0, self.M):
+
                 self.x_star[i, j] = self.z[(i, 0, j)].solution_value
         return Sol, mip_log
 

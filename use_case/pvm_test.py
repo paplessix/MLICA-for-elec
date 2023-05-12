@@ -35,17 +35,18 @@ print("Start compute social welfare")
 
 microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
-Qinit =200
-Qmax=202
+Qinit =5
+Qmax=10
+Qround=1
 L=30000
 sample_weight_on = False
 sample_weight_scaling = None
 min_iteration = 1
 seed_instance = 12
-epochs = 150
+epochs = 300
 batch_size = 32
 regularization_type = 'l1'  # 'l1', 'l2' or 'l1_l2'
-model_name = 'PlainNN'
+model_name = 'MVNN'
 Mip_bounds_tightening = "IA"
 warm_start=False
 parameters = {f"Bidder_{i}" : {} for i in range(len(MG.households))}
@@ -54,12 +55,12 @@ NN_parameters = defaultdict(dict)
 
 
 base ={"batch_size": 1,
-        "epochs":200,
+        "epochs":100,
         "l2": 1e-5,
         "loss_func": "F.l1_loss",
         "lr": 0.0001,
-        "num_hidden_layers":3,
-        "num_neurons":160,
+        "num_hidden_layers":1,
+        "num_neurons":175,
         "optimizer": "Adam"
     }
 
@@ -93,9 +94,11 @@ RESULT = mlca_mechanism(value_model = MG,
     
     Qinit = Qinit,
     Qmax = Qmax,
-    Qround = 1,
+    Qround = Qround,
     MIP_parameters=MIP_parameters,
     NN_parameters=NN_parameters,
     scaler=None,
-
+    calc_efficiency_per_iteration=True
     )
+
+
