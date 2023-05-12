@@ -1,21 +1,21 @@
 import pandas as pd 
 
-def preprocessor_wind(df, max_capacity):
+def preprocessor_wind(df, max_capacity, type):
     """Preprocess wind data"""
     df = df.clip(0,24)**3
-    df = df/df.max()*max_capacity
+    df = (df/df.max()*max_capacity).apply(lambda x  : type(x))
     df.rename("generation", inplace = True)
     return df
 
-def preprocessor_solar(df, max_capacity):
+def preprocessor_solar(df, max_capacity, type):
     """Preprocess solar data"""
-    df = df/df.max()*max_capacity
+    df =(df/df.max()*max_capacity).apply(lambda x  : type(x))
     df.rename("generation", inplace = True)
     return df
 
-def preprocessor_consumption(df, max_capacity):
+def preprocessor_consumption(df, max_capacity, type):
     """Preprocess consumption data"""
-    df = df/df.max()*max_capacity
+    df = (df/df.max()*max_capacity).apply(lambda x  : type(x))
     df.rename("consumption", inplace=True)
     return df
 

@@ -21,7 +21,7 @@ class HouseHold():
         self.result = None
         self.horizon = 24
 
-    def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path, profile_path= None):
+    def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path, profile_path= None, type = int):
 
         self.profile_path = profile_path
         if self.param["generation"]["type"] == "wind":
@@ -35,8 +35,8 @@ class HouseHold():
         
         # Load data
 
-        data_generation = preprocessor_generation(pd.read_csv(generation_path)[column_name], self.param["generation"]["max_generation"])
-        data_consumption = preprocessor_consumption(pd.read_csv(consumption_path)["Power [kW]"], self.param["consumption"]["max_consumption"])
+        data_generation = preprocessor_generation(pd.read_csv(generation_path)[column_name], self.param["generation"]["max_generation"], type )
+        data_consumption = preprocessor_consumption(pd.read_csv(consumption_path)["Power [kW]"], self.param["consumption"]["max_consumption"], type)
         data_fcr_price = preprocessor_fcr_price(pd.read_csv(fcr_price_path)["FCR price"])
         data_spot_price = preprocessor_spot_price(pd.read_csv(spot_price_path)["price_euros_mwh"])
 
@@ -111,7 +111,7 @@ class HouseHold():
         self.model.SoC = Var(self.model.Period)
         self.model.Charge_power = Var(self.model.Period,initialize=0, bounds=( -self.param["battery"]["power"],0))
         self.model.Discharge_power = Var(self.model.Period,initialize=0, bounds=(0, self.param["battery"]["power"]))
-        self.model.Grid_power = Var(self.model.Period, bounds=(0, np.inf))
+        self.model.Grid_power = Var(self.model.Period, bounds=(0, np.inf), within= Integers)
         self.model.Non_served_consumption = Var(self.model.Period,initialize= 0, bounds=(0, np.inf))
         self.model.Curtailed_generation = Var(self.model.Period, initialize=0, bounds=(0, np.inf))
         self.model.charge_on = Var(self.model.Period, within=Binary)

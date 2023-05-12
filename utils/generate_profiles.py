@@ -10,7 +10,7 @@ def generate_random_profile(template, ID = None):
     # Consumption
 
     template["consumption"]["type"] = np.random.choice(listing_file["consumption"])
-    template["consumption"]["max_consumption"] = 10
+    template["consumption"]["max_consumption"] = 100
     template["consumption"]["cost_of_non_served_energy"] = 0.2
     # Generation
     template["generation"]["type"] = np.random.choice(listing_file["generation"])
