@@ -20,7 +20,7 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 print("Start loading household profiles")
 folder_path = "config\household_profile\\"
 houses = []
-for file in os.listdir(folder_path)[:3]:
+for file in os.listdir(folder_path)[:5]:
     if file.endswith(".json"):
         household = json.load(open(folder_path+"/"+ file))
     house = HouseHold(household)
@@ -37,8 +37,8 @@ print("Start compute social welfare")
 
 microgrid_1 =json.load(open("config\microgrid_profile/non_constrained_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
-Qinit =20
-Qmax = 25
+Qinit =2
+Qmax = 10
 Qround=1
 L=30000
 sample_weight_on = False
@@ -47,7 +47,7 @@ min_iteration = 1
 seed_instance = 12
 epochs = 300
 batch_size = 32
-regularization_type = 'l1'  # 'l1', 'l2' or 'l1_l2'
+regularization_type = 'l2'  # 'l1', 'l2' or 'l1_l2'
 model_name = 'MVNN'
 Mip_bounds_tightening = "IA"
 warm_start=False
@@ -58,14 +58,15 @@ NN_parameters = defaultdict(dict)
 
 
 base ={"batch_size": 1,
-        "epochs":200,
-        "l2": 1e-5,
+        "epochs":2,
+        "l2": 1e-6,
         "loss_func": "F.l1_loss",
         "lr": 0.0001,
         "num_hidden_layers":2,
-        "num_neurons":175 ,
-        "optimizer": "Adam"
-    }
+        "num_neurons":150 ,
+        "optimizer": "Adam",
+        "ts" :1, 
+        "state_dict" : "model/test.pt"  }
 
 
 for house in MG.households:
@@ -104,5 +105,7 @@ RESULT = mlca_mechanism(value_model = MG,
     calc_efficiency_per_iteration=True, 
     local_scaling_factor=loacal_scaling_factor,
     )
+
+print(RESULT[1]['MLCA Payments'])
 
 

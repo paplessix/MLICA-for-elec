@@ -6,6 +6,7 @@ import random
 from collections import defaultdict
 from datetime import datetime
 from functools import partial
+from typing import Any, Mapping
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,7 +44,7 @@ def compute_metrics(preds, targets):
 
 class Net(nn.Module):
     def __init__(self, input_dim: int, num_hidden_layers: int, num_units: int, layer_type: str, target_max: float,
-                 ts: int = 1):
+                 ts: int = [10,1]):
         super(Net, self).__init__()
         if layer_type == 'PlainNN':
             fc_layer = torch.nn.Linear
@@ -184,13 +185,20 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
                 num_hidden_layers=config['num_hidden_layers'],
                 num_units=config['num_units'], target_max=config['target_max'],
                 ts=config['ts']).to(device)
+    
+    if config['state_dict'] is not None:
+        model.load_state_dict(torch.load(config['state_dict']))
+        model.eval()
+
     if config['optimizer'] == 'Adam':
         optimizer = optim.Adam(model.parameters(), lr=config['lr'], weight_decay=config['l2'])
     elif config['optimizer'] == 'SGD':
         optimizer = optim.SGD(model.parameters(), lr=config['lr'], momentum=.9, weight_decay=config['l2'])
     else:
         raise NotImplementedError()
+    
     loss_func = eval(config['loss_func'])
+
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)
     if val_dataset:
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=4096, num_workers=2)
@@ -207,7 +215,8 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
     while reattempt and attempts < 1: #TODO: has been changed
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(config['epochs']))
         attempts += 1
-        model.apply(weights_init)
+        if config['state_dict'] is None :
+            model.apply(weights_init)
         for epoch in tqdm(range(1, config['epochs'] + 1)):
             metrics['train'][epoch] = train(model, device, train_loader, optimizer, epoch, config,
                                             loss_func=loss_func)
@@ -263,7 +272,7 @@ def get_training_data(MicroGrid_instance, num_train_data, seed, bidder_id, layer
 
 
 def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch_size, num_hidden_layers,
-                num_hidden_units, optimizer, epochs, loss_func, lr, l2, normalize, normalize_factor, eval_test=False,
+                num_hidden_units, optimizer, epochs, loss_func, lr, l2, normalize, normalize_factor, eval_test=False, state_dict=None,
                 log_path=None, save_datasets=False, ts = 1.0):
     logs = defaultdict()
     np.random.seed(seed)
@@ -287,7 +296,8 @@ def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch
         'target_max': dataset_info['target_max'],
         'optimizer': optimizer,
         'l2': l2,
-        'ts': ts
+        'ts': ts,
+        'state_dict': state_dict,
     }
 
     model, logs = train_model(train_dataset, config, logs, val_dataset=val_dataset, test_dataset=test_dataset,

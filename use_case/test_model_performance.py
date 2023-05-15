@@ -60,19 +60,21 @@ if __name__=="__main__":
           "lr": 0.0001,
           "num_hidden_layers":2,
           "num_neurons": 150,
-          "optimizer": "Adam"
+          "optimizer": "Adam", 
+          "state_dict" : None
         }
 
     print('Selected hyperparameters', config_dict)
     model, logs = evaluate_network(
         config_dict, seed=0, MicroGrid_instance=MG, bidder_id=1,
-        num_train_data=800, layer_type="CALayerReLUProjected",
+        num_train_data=500, layer_type="CALayerReLUProjected",
         normalize=True,
         normalize_factor=1)
     train_logs = logs['metrics']['train'][config_dict['epochs']]
     val_logs = logs['metrics']['val'][config_dict['epochs']]
     test_logs = logs['metrics']['test'][config_dict['epochs']]
-
+    
+    torch.save(model.state_dict(), "model/test.pt")
     print('Train metrics \t| pearson corr.: {:.3f}, KT: {:.3f}'.format(train_logs['r'], train_logs['kendall_tau']))
     print('Valid metrics \t| pearson corr.: {:.3f}, KT: {:.3f}'.format(val_logs['r'], val_logs['kendall_tau']))
     print('Test metrics \t| pearson corr.: {:.3f}, KT: {:.3f}'.format(test_logs['r'], test_logs['kendall_tau']))

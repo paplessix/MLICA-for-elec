@@ -99,7 +99,8 @@ class MLCA_NN:
             'target_max': target_max,
             'optimizer': self.model_parameters['optimizer'],
             'l2': self.model_parameters['l2'],
-            'ts': float(1)
+            'ts': self.model_parameters['ts'],
+            'state_dict': self.model_parameters['state_dict'],
         }
         logs = defaultdict()
 

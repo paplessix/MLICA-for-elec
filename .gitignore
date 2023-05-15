@@ -27,6 +27,7 @@ tags
 config
 runs
 logs
+model
 
 # Package files
 *.egg

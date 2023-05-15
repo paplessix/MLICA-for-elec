@@ -33,7 +33,7 @@ class MLCA_WDP:
         # add intersection constraints of buzndles for z(i,k)
         for m in range(0, self.M):  # over items m \in M
             self.Mip.add_constraint(ct=(self.Mip.sum(
-                self.z[(i, k)] * self.bids[i][k, m] for i in range(0, self.N) for k in range(0, self.K[i])) <= 50),
+                self.z[(i, k)] * self.bids[i][k, m] for i in range(0, self.N) for k in range(0, self.K[i])) <= 500),
                                     ctname="CT Intersection Item {}".format(m))
 
         # add objective

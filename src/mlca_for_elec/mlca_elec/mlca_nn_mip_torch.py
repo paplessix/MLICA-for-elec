@@ -520,7 +520,7 @@ class NN_MIP_TORCH:
         
         # allocation constraints for x^i's
         for j in range(0, self.M):
-            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 50),
+            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 500),
                                     ctname="FeasabilityCT_x_{}".format(j))
         # add bidder specific constraints
         if bidder_specific_constraints is not None:
@@ -542,7 +542,7 @@ class NN_MIP_TORCH:
             for idx, bundle in enumerate(bundles):
                 # logging.debug(bundle)
                 self.Mip.add_constraint(
-                    ct=(self.Mip.sum((self.z[(bidder_id, 0, j)] == bundle[j]) for j in range(0, self.M)) <= self.M - 1),
+                    ct=(self.Mip.sum((self.z[(bidder_id, 0, j)] == int(bundle[j])) for j in range(0, self.M)) <= self.M - 1),
                     ctname="BidderSpecificCT_Bidder{}_No{}".format(bidder_id, idx))
 
     def get_bidder_key_position(self,
@@ -576,6 +576,7 @@ class NN_MIP_TORCH:
                 logging.debug('Tighten bounds with IA for %s', bidder)
                 Wb = self._get_model_weights(bidder)
                 ts = self.Models[bidder].ts
+                print(ts)
                 assert len(Wb) % 2 == 0, 'Currently weights and biases should always be coupled.'
 
                 #######
