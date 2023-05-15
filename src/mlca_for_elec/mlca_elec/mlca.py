@@ -6,7 +6,7 @@ import numpy as np
 from numpyencoder import NumpyEncoder
 
 from mlca_for_elec.mlca_elec.mlca_economies import MLCA_Economies
-from mlca_for_elec.mlca_elec.mlca_util import key_to_int, timediff_d_h_m_s
+from mlca_for_elec.mlca_elec.mlca_util import key_to_int, timediff_d_h_m_s, plot_efficiency_per_iteration
 
 # %% MLCA MECHANISM
 def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name=None, Qinit=None, Qmax=None, Qround=None,
@@ -187,8 +187,14 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
     logging.warning('TOTAL TIME ELAPSED: {}'.format('{}d {}h:{}m:{}s'.format(*total_time_elapsed)))
     logging.warning('MLCA FINISHED')
 
+    # Display Results
+    plot_efficiency_per_iteration(E.efficiency_per_iteration)
+
+
+
     # Set OUTPUT
     OUTPUT['MLCA Efficiency'] = E.mlca_allocation_efficiency
+    OUTPUT['MLCA Efficiency per Iteration'] = E.efficiency_per_iteration
     if return_allocation: OUTPUT['MLCA Allocation'] = E.mlca_allocation
     OUTPUT['MLCA Payments'] = E.mlca_payments
     OUTPUT['Statistics'] = {'Total Time Elapsed': total_time_elapsed, 'Elapsed Times of MIPs': E.elapsed_time_mip,

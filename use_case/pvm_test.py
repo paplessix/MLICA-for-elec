@@ -29,14 +29,16 @@ for file in os.listdir(folder_path)[:3]:
     spot_price_path = "data/spot_price/2020.csv"
     fcr_price_path = "data/fcr_price/random_fcr.csv"
     house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
+    for i in range(205):
+        house.next_data()
     houses.append(house)
 print(f"Loaded {len(houses)} households")
 print("Start compute social welfare")
 
-microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
+microgrid_1 =json.load(open("config\microgrid_profile/non_constrained_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
-Qinit =5
-Qmax=10
+Qinit =20
+Qmax = 25
 Qround=1
 L=30000
 sample_weight_on = False
@@ -50,17 +52,18 @@ model_name = 'MVNN'
 Mip_bounds_tightening = "IA"
 warm_start=False
 parameters = {f"Bidder_{i}" : {} for i in range(len(MG.households))}
+loacal_scaling_factor = 1
 
 NN_parameters = defaultdict(dict)
 
 
 base ={"batch_size": 1,
-        "epochs":100,
+        "epochs":200,
         "l2": 1e-5,
         "loss_func": "F.l1_loss",
         "lr": 0.0001,
-        "num_hidden_layers":1,
-        "num_neurons":175,
+        "num_hidden_layers":2,
+        "num_neurons":175 ,
         "optimizer": "Adam"
     }
 
@@ -98,7 +101,8 @@ RESULT = mlca_mechanism(value_model = MG,
     MIP_parameters=MIP_parameters,
     NN_parameters=NN_parameters,
     scaler=None,
-    calc_efficiency_per_iteration=True
+    calc_efficiency_per_iteration=True, 
+    local_scaling_factor=loacal_scaling_factor,
     )
 
 

@@ -520,7 +520,7 @@ class NN_MIP_TORCH:
         
         # allocation constraints for x^i's
         for j in range(0, self.M):
-            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 10),
+            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 50),
                                     ctname="FeasabilityCT_x_{}".format(j))
         # add bidder specific constraints
         if bidder_specific_constraints is not None:

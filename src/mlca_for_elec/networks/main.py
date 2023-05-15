@@ -43,7 +43,7 @@ def compute_metrics(preds, targets):
 
 class Net(nn.Module):
     def __init__(self, input_dim: int, num_hidden_layers: int, num_units: int, layer_type: str, target_max: float,
-                 ts: float = 10.0):
+                 ts: int = 1):
         super(Net, self).__init__()
         if layer_type == 'PlainNN':
             fc_layer = torch.nn.Linear
@@ -264,7 +264,7 @@ def get_training_data(MicroGrid_instance, num_train_data, seed, bidder_id, layer
 
 def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch_size, num_hidden_layers,
                 num_hidden_units, optimizer, epochs, loss_func, lr, l2, normalize, normalize_factor, eval_test=False,
-                log_path=None, save_datasets=False):
+                log_path=None, save_datasets=False, ts = 1.0):
     logs = defaultdict()
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -287,7 +287,7 @@ def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch
         'target_max': dataset_info['target_max'],
         'optimizer': optimizer,
         'l2': l2,
-        'ts': 1.0
+        'ts': ts
     }
 
     model, logs = train_model(train_dataset, config, logs, val_dataset=val_dataset, test_dataset=test_dataset,

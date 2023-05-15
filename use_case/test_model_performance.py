@@ -52,21 +52,21 @@ if __name__=="__main__":
     plt.show()
     microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
-    MG.generate_dataset(0)
+    # MG.generate_dataset(0)
     config_dict = {"batch_size": 1,
           "epochs":300,
-          "l2": 1e-2,
+          "l2": 1e-6,
           "loss_func": "F.l1_loss",
           "lr": 0.0001,
-          "num_hidden_layers":5,
-          "num_neurons": 300,
+          "num_hidden_layers":2,
+          "num_neurons": 150,
           "optimizer": "Adam"
         }
 
     print('Selected hyperparameters', config_dict)
     model, logs = evaluate_network(
         config_dict, seed=0, MicroGrid_instance=MG, bidder_id=1,
-        num_train_data=50, layer_type="PlainNN",
+        num_train_data=800, layer_type="CALayerReLUProjected",
         normalize=True,
         normalize_factor=1)
     train_logs = logs['metrics']['train'][config_dict['epochs']]

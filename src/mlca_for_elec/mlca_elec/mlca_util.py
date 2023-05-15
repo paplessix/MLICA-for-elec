@@ -15,6 +15,7 @@ from collections import namedtuple
 
 import numpy as np
 from scipy.stats import binom
+import matplotlib.pyplot as plt
 
 from mlca_for_elec.mlca_elec.mlca_value_model import ValueModel
 
@@ -362,5 +363,14 @@ def create_value_model(value_model):
     else:
         raise NotImplementedError('Unknown value model: {}'.format(value_model))
     return V
+
+def plot_efficiency_per_iteration(efficiency_per_iteration):
+
+    plt.figure(figsize=(10, 10))
+    plt.plot(efficiency_per_iteration.keys(), efficiency_per_iteration.values())
+    plt.xlabel('Iteration')
+    plt.ylabel('Efficiency')
+    plt.show()
+    return
 
 
