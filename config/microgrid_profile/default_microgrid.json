@@ -2,10 +2,10 @@
 
 "nodes": [0,1,2,3],
 
-"congestion_matrix" : [[ 0  , 10  , 10 , 0  ],
+"capacity_matrix" : [[ 0  , 10  , 10 , 0  ],
                         [10 , 0   , 10 , 10 ],
                         [10 , 10  , 0  , 10 ],
                         [0  , 10  , 10 , 0  ]],
-"grid_connection" : 20
+"grid_connection" : 50
                     
 }

@@ -29,7 +29,7 @@ for file in os.listdir(folder_path)[:5]:
     spot_price_path = "data/spot_price/2020.csv"
     fcr_price_path = "data/fcr_price/random_fcr.csv"
     house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-    for i in range(205):
+    for i in range(208):
         house.next_data()
     houses.append(house)
 print(f"Loaded {len(houses)} households")
@@ -39,7 +39,7 @@ microgrid_1 =json.load(open("config\microgrid_profile/non_constrained_microgrid.
 MG = Microgrid(houses, microgrid_1)
 Qinit =2
 Qmax = 10
-Qround=1
+Qround=2
 L=30000
 sample_weight_on = False
 sample_weight_scaling = None
@@ -58,10 +58,10 @@ NN_parameters = defaultdict(dict)
 
 
 base ={"batch_size": 1,
-        "epochs":2,
+        "epochs":25,
         "l2": 1e-6,
         "loss_func": "F.l1_loss",
-        "lr": 0.0001,
+        "lr": 0.00001,
         "num_hidden_layers":2,
         "num_neurons":150 ,
         "optimizer": "Adam",

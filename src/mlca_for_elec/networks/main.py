@@ -120,21 +120,33 @@ def train(model, device, train_loader, optimizer, epoch, dataset_info, loss_func
     metrics.update(compute_metrics(preds, targets))
     return metrics
 
+def validate(model, device, val_dataset, dataset_info, loss_func):
+    #model.eval()
+    total_loss = 0
+    data, targets = val_dataset[:][0], val_dataset[:][1]
+    data,targets = data.to(device), targets.to(device)
+    preds = model(data)
+    loss = loss_func(preds.flatten(), targets.flatten())
+    total_loss += float(loss) * len(preds)
+    metrics = {'loss': total_loss / len(val_dataset)}
+    preds, targets = (preds.detach().numpy() * dataset_info['target_max']).tolist(), \
+                     (np.array(targets) * dataset_info['target_max']).tolist()
+    metrics.update(compute_metrics(preds, targets))
+    return metrics
+  
 
-def test(model, device, loader, valid_true, epoch, dataset_info, loss_func, plot=False, log_path=None):
+def test(model, device, dataset, valid_true, epoch, dataset_info, loss_func, plot=False, log_path=None):
     model.eval()
     test_loss = 0
     correct = 0
     preds, targets = [], []
     with torch.no_grad():
-        for data, target in loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            preds.extend(output.detach().cpu().numpy().flatten().tolist())
-            targets.extend(target.detach().cpu().numpy().flatten().tolist())
-            test_loss += loss_func(output.flatten(), target.flatten(), reduction='sum').item()  # sum up batch loss
-
-    preds, targets = (np.array(preds) * dataset_info['target_max']).tolist(), \
+        data,targets = dataset[:][0], dataset[:][1]
+        data,targets = data.to(device), targets.to(device)
+        preds = model(data)
+        test_loss += loss_func(preds.flatten(), targets.flatten()).item()  # sum up batch loss
+       
+    preds, targets = (preds.detach().numpy() * dataset_info['target_max']).tolist(), \
                      (np.array(targets) * dataset_info['target_max']).tolist()
     metrics = {}
 
@@ -171,7 +183,7 @@ def test(model, device, loader, valid_true, epoch, dataset_info, loss_func, plot
         plt.show()
         plt.close()
 
-    test_loss /= len(loader.dataset)
+    test_loss /= len(dataset)
     metrics['loss'] = test_loss
 
     return metrics
@@ -218,11 +230,19 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
         if config['state_dict'] is None :
             model.apply(weights_init)
         for epoch in tqdm(range(1, config['epochs'] + 1)):
+            
             metrics['train'][epoch] = train(model, device, train_loader, optimizer, epoch, config,
                                             loss_func=loss_func)
+            
+            metrics["valid"][epoch] = validate(model, device, val_dataset, config, loss_func=loss_func)
+            
             writer.add_scalar('Loss/train', metrics['train'][epoch]["loss"], epoch)
-            writer.add_scalar('Pearson/train', metrics['train'][epoch]["r"], epoch)
+            # writer.add_scalar('Pearson/train', metrics['train'][epoch]["r"], epoch)
             writer.add_scalar('MAE/train', metrics['train'][epoch]["mae"], epoch)
+
+            writer.add_scalar('Loss/valid', metrics['valid'][epoch]["loss"], epoch)
+            # writer.add_scalar('Pearson/valid', metrics['valid'][epoch]["r"], epoch)
+            writer.add_scalar('MAE/valid', metrics['valid'][epoch]["mae"], epoch)
             scheduler.step()
 
         if last_train_loss > metrics['train'][epoch]['loss']:
@@ -239,12 +259,12 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
     # Transform the weights
     model.transform_weights()
     if val_dataset is not None:
-        metrics['val'][epoch] = test(model, device, val_loader, valid_true=True, plot=False, epoch=epoch,
+        metrics['val'][epoch] = test(model, device, val_dataset, valid_true=True, plot=False, epoch=epoch,
                                      log_path=None, dataset_info=config, loss_func=loss_func)
 
     if eval_test:
         if test_dataset is not None:
-            metrics['test'][epoch] = test(model, device, test_loader, valid_true=False, epoch=epoch, plot=True,
+            metrics['test'][epoch] = test(model, device, test_dataset, valid_true=False, epoch=epoch, plot=True,
                                           log_path=None, dataset_info=config, loss_func=loss_func)
     logs['metrics'] = metrics
     if save_datasets:

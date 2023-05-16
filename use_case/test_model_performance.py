@@ -23,7 +23,7 @@ def evaluate_network(cfg: dict, seed: int, MicroGrid_instance: str, bidder_id: s
         layer_type=layer_type, batch_size=cfg['batch_size'], num_hidden_layers=cfg['num_hidden_layers'],
         num_hidden_units=int(max(1, np.round(cfg['num_neurons'] / cfg['num_hidden_layers']))), l2=cfg['l2'],
         lr=cfg['lr'], normalize_factor=normalize_factor, optimizer=cfg['optimizer'], num_train_data=num_train_data,
-        eval_test=True, epochs=cfg['epochs'], loss_func=cfg['loss_func'], normalize=normalize, save_datasets=False, log_path="logs")
+        eval_test=True, epochs=cfg['epochs'], loss_func=cfg['loss_func'], normalize=normalize, save_datasets=False, log_path="logs", state_dict = cfg["state_dict"])
 
 
 
@@ -42,7 +42,7 @@ if __name__=="__main__":
         spot_price_path = "data/spot_price/2020.csv"
         fcr_price_path = "data/fcr_price/random_fcr.csv"
         house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-        for i in range(205):
+        for i in range(225):
             house.next_data()
         houses.append(house)
     print(f"Loaded {len(houses)} households")
@@ -61,13 +61,13 @@ if __name__=="__main__":
           "num_hidden_layers":2,
           "num_neurons": 150,
           "optimizer": "Adam", 
-          "state_dict" : None
+          "state_dict" : "model/test.pt"
         }
 
     print('Selected hyperparameters', config_dict)
     model, logs = evaluate_network(
         config_dict, seed=0, MicroGrid_instance=MG, bidder_id=1,
-        num_train_data=500, layer_type="CALayerReLUProjected",
+        num_train_data=300, layer_type="CALayerReLUProjected",
         normalize=True,
         normalize_factor=1)
     train_logs = logs['metrics']['train'][config_dict['epochs']]
