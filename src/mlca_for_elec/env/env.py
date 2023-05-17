@@ -302,6 +302,7 @@ class Microgrid():
     def add_dcopf_constraints(self):
         # Define specific variables for DCOPF
         self.model.theta = Var(self.model.nodes, self.model.Period, domain=Reals)
+        self.model.voltage = Var(self.model.nodes, self.model.Period, domain=Reals)
         self.model.flows = Var(self.model.nodes, self.model.nodes, self.model.Period, domain=Reals)
         
         # Define flows 
@@ -343,18 +344,20 @@ class Microgrid():
         self.model.capacity_limitation_rule_up = Constraint(self.model.nodes,self.model.nodes,self.model.Period, rule=capacity_limitation_rule_up)
         self.model.capacity_limitation_rule_down = Constraint(self.model.nodes,self.model.nodes,self.model.Period, rule=capacity_limitation_rule_down)
         self.model.reference_angle =Constraint(self.model.Period, rule=reference_angle)
+    
     def add_lindistflow_constraints(self):
-        self.voltage = Var(self.model.nodes, self.model.Period, domain=Reals)
-        self.flows = Var(self.model.nodes, self.model.nodes, self.model.Period, domain=Reals)
-        self.reactive_flows = Var(self.model.nodes, self.model.nodes, self.model.Period, domain=Reals)
-        self.external_inport_reactive = Var(self.model.Period, domain=Reals)
+        self.model.voltage = Var(self.model.nodes, self.model.Period, domain=Reals)
+        self.model.theta= Var(self.model.nodes, self.model.Period, domain=Reals)
+        self.model.flows = Var(self.model.nodes, self.model.nodes, self.model.Period, domain=Reals)
+        self.model.reactive_flows = Var(self.model.nodes, self.model.nodes, self.model.Period, domain=Reals)
+        self.model.external_import_reactive = Var(self.model.Period, domain=Reals)
 
         def voltage_rule(model, node, t):
             if node == 0:
                 return model.voltage[node,t] == 220
             else :
-                parent_node = self.incidence_graph.predecessors(node)[0]
-                return model.voltage[node,t] == model.voltage[parent_node] - 2 *self.R*model.flows[parent_node,node,t] - 2*self.X*model.reactive_flows[parent_node,node,t]
+                parent_node = self.incidence_graph.predecessors(node).__next__()
+                return model.voltage[node,t] == model.voltage[parent_node,t] - 2 *self.R*model.flows[parent_node,node,t] - 2*self.X*model.reactive_flows[parent_node,node,t]
 
         def flow_rule(model,node,t):
             s = 0
@@ -363,21 +366,31 @@ class Microgrid():
                     s+=self.model.__getattribute__(f"house_{i}").Grid_power[t]
 
             if node == 0:
-                return model.external_inport[t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node))
+                return model.external_import[t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node))
             else:
-                parent_node = self.incidence_graph.predecessors(node)[0]
-                s + model.flows[parent_node,node,t] == sum(model.flows[node,child,t] for child in self.incidence_graph.successors(node))
+                parent_node = self.incidence_graph.predecessors(node).__next__()
+                return s + model.flows[parent_node,node,t] == sum(model.flows[node,child,t] for child in self.incidence_graph.successors(node))
         def reactive_flow_rule(model,node,t):
             if node == 0:
-                return model.external_inport_reactive[t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node))
+                return model.external_import_reactive[t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node))
 
             else:
-                parent_node = self.incidence_graph.predecessors(node)[0]
+                parent_node = self.incidence_graph.predecessors(node).__next__()
                 return model.reactive_flows[parent_node,node,t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node))
 
+        def voltage_lim_up(model,node,t):
+            return model.voltage[node,t] <= 1.05*220
+        def voltage_lim_down(model,node,t):
+            return model.voltage[node,t] >= 0.95*220 
+               
+        
+        self.model.flow_rule = Constraint(self.model.nodes,self.model.Period, rule=flow_rule)
+        self.model.voltage_rule = Constraint(self.model.nodes,self.model.Period, rule=voltage_rule)
+        self.model.reactiver_flow_rule = Constraint(self.model.nodes,self.model.Period, rule=reactive_flow_rule)
+        self.model.voltage_lim_up_rule = Constraint(self.model.nodes,self.model.Period, rule=voltage_lim_up)
+        self.model.voltage_lim_down_rule = Constraint(self.model.nodes,self.model.Period, rule=voltage_lim_down)
 
-        def capacity_limitation_rule_up(model, node1, node2,t):
-            model.flows[node1,node2,t]<= self.capacity_matrix[node1][node2]
+
 
     def is_network_radial(self):
         pass
@@ -395,7 +408,7 @@ class Microgrid():
         self.model.external_import = Var(self.model.Period, domain=NonNegativeReals)
 
         self.add_dcopf_constraints()
-        
+        # self.add_lindistflow_constraints()
         # add limit on importation
         def limit_import_rule(model, t):
             return model.external_import[t] <= self.grid_connection
@@ -423,10 +436,12 @@ class Microgrid():
         self.consumption["external_import"] = self.model.external_import.get_values()
         self.flows = np.zeros((self.horizon,self.N_nodes,self.N_nodes))
         self.thetas = np.zeros((self.horizon,self.N_nodes))
+        self.voltages = np.zeros((self.horizon,self.N_nodes))
 
         for t in self.model.Period : 
             for node1 in self.model.nodes :
                 self.thetas[t,node1] = self.model.theta[node1,t].value 
+                self.voltages[t,node1] = self.model.voltage[node1,t].value
                 for node2 in self.model.nodes:
                     if node2 > node1:
                         self.flows[t,node1,node2] = self.model.flows[node1,node2,t].value
@@ -502,8 +517,12 @@ class Microgrid():
 
 
     def display_voltages(self):
-        pass
- 
+        plt.imshow(self.voltages.T, cmap='hot')
+        plt.title("Voltages at each node")
+        plt.xlabel("Time")
+        plt.ylabel("Node")
+        plt.colorbar()
+        plt.show()     
 
 
     def get_bidder_ids(self):
@@ -604,5 +623,6 @@ if __name__=="__main__":
     # MG.display_gridflows()
     MG.display_angles()
     MG.display_flows()
+    MG.display_voltages()
 
 

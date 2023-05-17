@@ -397,7 +397,7 @@ class MLCA_Economies:
 
         for attempt in range(1, attempts + 1):
             logging.debug('Initialize MIP')
-            X = MLCA_NNMIP(DNNs, L=self.MIP_parameters['bigM'])
+            X = MLCA_NNMIP(DNNs, L=self.MIP_parameters['bigM'], MG_instance = self.SATS_auction_instance)
             if not self.MIP_parameters['mip_bounds_tightening']:
                 X.initialize_mip(verbose=False,
                                  bidder_specific_constraints=bidder_specific_constraints,

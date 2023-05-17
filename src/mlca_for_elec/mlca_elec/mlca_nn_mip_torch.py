@@ -1,7 +1,7 @@
 # Libs
 import logging
 from collections import OrderedDict
-
+from mlca_for_elec.env.util_dcopf import _add_MG_specific_constraints_dcopf
 import docplex.mp.model as cpx
 import numpy as np
 import pandas as pd
@@ -20,11 +20,13 @@ class NN_MIP_TORCH:
 
     def __init__(self,
                  models,
-                 L=None):
+                 L=None, MG_instance=None):
 
         self.M = list(models[list(models.keys())[0]].parameters())[0].shape[
             1]  # number of items in the value model = dimension of input layer
         self.Models = models  # dict of pytorch models
+        self.MG_instance = MG_instance  # instance of the microgrid
+        NN_MIP_TORCH._add_MG_specific_constraints = _add_MG_specific_constraints_dcopf  # function to add MG-specific constraints
         # type of NNs (currently all NNs must be of the same type)
         if 'ca' in list(self.Models.values())[0]._layer_type.lower():
             self.NN_type = 'UNN'
@@ -158,6 +160,7 @@ class NN_MIP_TORCH:
         except Exception:
             self.soltime = None
         mip_log = self.log_solve_details(self.Mip)
+        
         # set the optimal allocation
         for i in range(0, self.N):
             for j in range(0, self.M):
@@ -520,8 +523,14 @@ class NN_MIP_TORCH:
         
         # allocation constraints for x^i's
         for j in range(0, self.M):
-            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 500),
+            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 10000),
                                     ctname="FeasabilityCT_x_{}".format(j))
+            
+        if self.MG_instance is not None :
+            # add MG specific constraints
+            self._add_MG_specific_constraints()
+            pass
+
         # add bidder specific constraints
         if bidder_specific_constraints is not None:
             self._add_bidder_specific_constraints(bidder_specific_constraints)
@@ -530,9 +539,10 @@ class NN_MIP_TORCH:
         # add objective: sum of 1dim outputs of neural network per bidder z[(i,K_i,0)]
         objective = (self.Mip.sum(
             self.Models[self.sorted_bidders[i]]._target_max * self.z[(i, self.Models[self.sorted_bidders[i]]._num_hidden_layers + 1, 0)] for i in range(0, self.N))
-                    - self.Mip.scal_prod([self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) for j in range(0, self.M)], spot_prices))
+                    - self.Mip.scal_prod([self.external_import[j] for j in range(0, self.M)], spot_prices))
         self.Mip.maximize(objective)
         logging.info('MIP initialized')
+
 
     def _add_bidder_specific_constraints(self,
                                          bidder_specific_constraints):

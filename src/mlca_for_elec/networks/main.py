@@ -121,6 +121,7 @@ def train(model, device, train_loader, optimizer, epoch, dataset_info, loss_func
     return metrics
 
 def validate(model, device, val_dataset, dataset_info, loss_func):
+    print(val_dataset)
     #model.eval()
     total_loss = 0
     data, targets = val_dataset[:][0], val_dataset[:][1]
@@ -233,16 +234,14 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
             
             metrics['train'][epoch] = train(model, device, train_loader, optimizer, epoch, config,
                                             loss_func=loss_func)
-            
-            metrics["valid"][epoch] = validate(model, device, val_dataset, config, loss_func=loss_func)
-            
             writer.add_scalar('Loss/train', metrics['train'][epoch]["loss"], epoch)
             # writer.add_scalar('Pearson/train', metrics['train'][epoch]["r"], epoch)
             writer.add_scalar('MAE/train', metrics['train'][epoch]["mae"], epoch)
-
-            writer.add_scalar('Loss/valid', metrics['valid'][epoch]["loss"], epoch)
-            # writer.add_scalar('Pearson/valid', metrics['valid'][epoch]["r"], epoch)
-            writer.add_scalar('MAE/valid', metrics['valid'][epoch]["mae"], epoch)
+            if val_dataset is not None:
+                metrics["valid"][epoch] = validate(model, device, val_dataset, config, loss_func=loss_func)
+                writer.add_scalar('Loss/valid', metrics['valid'][epoch]["loss"], epoch)
+                # writer.add_scalar('Pearson/valid', metrics['valid'][epoch]["r"], epoch)
+                writer.add_scalar('MAE/valid', metrics['valid'][epoch]["mae"], epoch)
             scheduler.step()
 
         if last_train_loss > metrics['train'][epoch]['loss']:

@@ -20,7 +20,7 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 print("Start loading household profiles")
 folder_path = "config\household_profile\\"
 houses = []
-for file in os.listdir(folder_path)[:5]:
+for file in os.listdir(folder_path)[:3]:
     if file.endswith(".json"):
         household = json.load(open(folder_path+"/"+ file))
     house = HouseHold(household)
@@ -35,11 +35,11 @@ for file in os.listdir(folder_path)[:5]:
 print(f"Loaded {len(houses)} households")
 print("Start compute social welfare")
 
-microgrid_1 =json.load(open("config\microgrid_profile/non_constrained_microgrid.json"))
+microgrid_1 =json.load(open("config\microgrid_profile/default_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
-Qinit =2
-Qmax = 10
-Qround=2
+Qinit =10
+Qmax = 30
+Qround=1    
 L=30000
 sample_weight_on = False
 sample_weight_scaling = None
@@ -59,9 +59,9 @@ NN_parameters = defaultdict(dict)
 
 base ={"batch_size": 1,
         "epochs":25,
-        "l2": 1e-6,
+        "l2": 1e-5,
         "loss_func": "F.l1_loss",
-        "lr": 0.00001,
+        "lr": 0.0001,
         "num_hidden_layers":2,
         "num_neurons":150 ,
         "optimizer": "Adam",
