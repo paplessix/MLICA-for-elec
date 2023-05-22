@@ -38,8 +38,7 @@ class MLCA_WDP:
 
         # add objective
         objective = (self.Mip.sum(
-            self.z[(i, k)] * self.bids[i][k, self.M] for i in range(0, self.N) for k in range(0, self.K[i]))
-            - self.Mip.scal_prod([self.external_import[j] for j in range(0, self.M)], spot_prices) )
+            self.z[(i, k)] * self.bids[i][k, self.M] for i in range(0, self.N) for k in range(0, self.K[i])) )
         self.Mip.maximize(objective)
 
         if verbose == 1:
