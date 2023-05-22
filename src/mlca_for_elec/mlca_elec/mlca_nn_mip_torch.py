@@ -1,7 +1,7 @@
 # Libs
 import logging
 from collections import OrderedDict
-from mlca_for_elec.env.util_dcopf import _add_MG_specific_constraints_dcopf
+from mlca_for_elec.env.util_dcopf import _add_MG_specific_constraints_dcopf, _add_MG_specific_constraints_copperplate
 import docplex.mp.model as cpx
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ class NN_MIP_TORCH:
             1]  # number of items in the value model = dimension of input layer
         self.Models = models  # dict of pytorch models
         self.MG_instance = MG_instance  # instance of the microgrid
-        NN_MIP_TORCH._add_MG_specific_constraints = _add_MG_specific_constraints_dcopf  # function to add MG-specific constraints
+        NN_MIP_TORCH._add_MG_specific_constraints = _add_MG_specific_constraints_copperplate # function to add MG-specific constraints
         # type of NNs (currently all NNs must be of the same type)
         if 'ca' in list(self.Models.values())[0]._layer_type.lower():
             self.NN_type = 'UNN'
@@ -523,7 +523,7 @@ class NN_MIP_TORCH:
         
         # allocation constraints for x^i's
         for j in range(0, self.M):
-            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 10000),
+            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 10000), # TODO: Remove
                                     ctname="FeasabilityCT_x_{}".format(j))
             
         if self.MG_instance is not None :

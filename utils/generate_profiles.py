@@ -9,16 +9,18 @@ def generate_random_profile(template, ID = None):
     template["ID"] = ID
     # Consumption
 
-    template["consumption"]["type"] = "Residential" #np.random.choice(listing_file["consumption"])
+    template["consumption"]["type"] = np.random.choice(listing_file["consumption"])
     template["consumption"]["max_consumption"] = 100
     template["consumption"]["cost_of_non_served_energy"] = 0.2
     # Generation
     template["generation"]["type"] = np.random.choice(listing_file["generation"])
-    template["generation"]["max_generation"] = 0
+    template["generation"]["max_generation"] =100
 
     # Battery
-    template["battery"]["power"] = 20
-    template["battery"]["enabled"] = True # bool(np.random.randint(0,2))
+    template["battery"]["enabled"] =  True
+    template["battery"]["power"] = 50* template["battery"]["enabled"]
+    template["battery"]["duration"] =4 # np.random.randint(1,5)* template["battery"]["enabled"]
+    
     template["battery"]["fcr_enabled"] =False # bool(np.random.randint(0,2))
 
     # Grid 

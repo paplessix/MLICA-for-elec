@@ -5,12 +5,15 @@ import docplex.mp.model as cpx
 # Libs
 import numpy as np
 import pandas as pd
+
+from mlca_for_elec.env.util_dcopf import _add_MG_specific_constraints_copperplate_wdp
+
 # %%
 
 
 class MLCA_WDP:
 
-    def __init__(self, bids):
+    def __init__(self, bids, MG_instance = None, spot_prices = None ):
 
         self.bids = bids  # list of numpy nxd arrays representing elicited bundle-value pairs from each bidder. n=number of elicited bids, d = number of items + 1(value for that bundle).
         self.N = len(bids)  # number of bidders
@@ -19,6 +22,8 @@ class MLCA_WDP:
         self.K = [x.shape[0] for x in bids]  # number of elicited bids per bidder
         self.z = {}  # decision variables. z(i,k) = 1 <=> bidder i gets the kth bundle out of 1,...,K[i] from his set of bundle-value pairs
         self.x_star = np.zeros((self.N, self.M), dtype=int)  # optimal allocation of the winner determination problem
+        self.MG_instance = MG_instance  # MG instance
+        MLCA_WDP._add_MG_specific_constraints = _add_MG_specific_constraints_copperplate_wdp # function pointer to add MG specific constraints
 
     def initialize_mip(self, verbose=0, spot_prices=None):
 
@@ -30,15 +35,22 @@ class MLCA_WDP:
             self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, k)] for k in range(self.K[i])) <= 1),
                                     ctname="CT Allocation Bidder {}".format(i))
 
-        # add intersection constraints of buzndles for z(i,k)
-        for m in range(0, self.M):  # over items m \in M
-            self.Mip.add_constraint(ct=(self.Mip.sum(
-                self.z[(i, k)] * self.bids[i][k, m] for i in range(0, self.N) for k in range(0, self.K[i])) <= 100),
-                                    ctname="CT Intersection Item {}".format(m))
+        # # add intersection constraints of buzndles for z(i,k)
+        # for m in range(0, self.M):  # over items m \in M
+        #     self.Mip.add_constraint(ct=(self.Mip.sum(
+        #         self.z[(i, k)] * self.bids[i][k, m] for i in range(0, self.N) for k in range(0, self.K[i])) <= 1000000),
+        #                             ctname="CT Intersection Item {}".format(m))
+
+        # Add grid constraints
+        if self.MG_instance is not None:
+            self._add_MG_specific_constraints()
+
+        
 
         # add objective
         objective = (self.Mip.sum(
-            self.z[(i, k)] * self.bids[i][k, self.M] for i in range(0, self.N) for k in range(0, self.K[i])) )
+            self.z[(i, k)] * self.bids[i][k, self.M] for i in range(0, self.N) for k in range(0, self.K[i])) 
+             - self.Mip.scal_prod([self.external_import[j] for j in range(0, self.M)], spot_prices) )
         self.Mip.maximize(objective)
 
         if verbose == 1:

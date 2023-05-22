@@ -253,18 +253,19 @@ def format_solution_mip_new(Mip, elicited_bids, bidder_names, fitted_scaler):
     for key in list(S.keys()):
         key = str(key)
         index = [int(x) for x in re.findall(r'\d+', key)]
-        bundle = elicited_bids[index[0]][index[1], :-1]
-        value = elicited_bids[index[0]][index[1], -1]
-        if fitted_scaler is not None:
-            logging.debug('*SCALING*')
-            logging.debug('---------------------------------------------')
-            logging.debug(value)
-            logging.debug('WDP values for allocation scaled by: 1/%s', round(fitted_scaler.scale_[0], 8))
-            value = float(fitted_scaler.inverse_transform([[value]]))
-            logging.debug(value)
-            logging.debug('---------------------------------------------')
-        bidder = bidder_names[index[0]]
-        Z[bidder] = {'good_ids': bundle, 'value': value}
+        if len(index) == 2: #TODO: not robust
+            bundle = elicited_bids[index[0]][index[1], :-1]
+            value = elicited_bids[index[0]][index[1], -1]
+            if fitted_scaler is not None:
+                logging.debug('*SCALING*')
+                logging.debug('---------------------------------------------')
+                logging.debug(value)
+                logging.debug('WDP values for allocation scaled by: 1/%s', round(fitted_scaler.scale_[0], 8))
+                value = float(fitted_scaler.inverse_transform([[value]]))
+                logging.debug(value)
+                logging.debug('---------------------------------------------')
+            bidder = bidder_names[index[0]]
+            Z[bidder] = {'good_ids': bundle, 'value': value}
     return (Z)
 
 

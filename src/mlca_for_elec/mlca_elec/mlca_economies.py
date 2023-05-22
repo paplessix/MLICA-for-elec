@@ -505,8 +505,8 @@ class MLCA_Economies:
         elicited_bundle_value_pairs = [np.concatenate((bids[0], np.asarray(bids[1]).reshape(-1, 1)), axis=1) for
                                        bidder, bids in
                                        elicited_bids.items()]  # transform self.elicited_bids into format for WDP class
-        wdp = MLCA_WDP(elicited_bundle_value_pairs)
-        wdp.initialize_mip(verbose=0)
+        wdp = MLCA_WDP(elicited_bundle_value_pairs, MG_instance= self.SATS_auction_instance)
+        wdp.initialize_mip(verbose=0, spot_prices=self.SATS_auction_instance.get_spot_price())
         wdp.solve_mip(verbose)
         # TODO: check solution formater
         objective = wdp.Mip.objective_value
@@ -526,7 +526,8 @@ class MLCA_Economies:
         return (allocation, objective)
 
     def calculate_efficiency_of_allocation(self, allocation, allocation_scw, verbose=0):
-        self.solve_SATS_auction_instance()
+        if self.SATS_auction_instance_scw is None:
+            self.solve_SATS_auction_instance()
         efficiency = allocation_scw / self.SATS_auction_instance_scw
         if verbose == 1:
             logging.debug('Calculating efficiency of input allocation:')

@@ -7,12 +7,13 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from mlca_for_elec.env.util_env import *
 from pyomo.environ import *
+from functools import reduce
 import pyomo.kernel as pmo
 import networkx as nx 
 from pyutilib.services import register_executable, registered_executable
 register_executable(name='glpsol')
 
-class HouseHold():
+class HouseHold():  
     def __init__(self, param) -> None:
         self.param = param
         self.ID = self.param["ID"]
@@ -108,7 +109,7 @@ class HouseHold():
         self.model.FCR_enabled = Param(initialize=self.param["battery"]["fcr_enabled"], within=Binary) # Binary variable to know if the FCR is enabled or not
         
         # battery variables
-        self.model.battery_enabled = Param(initialize=self.param["battery"]["enabled"], within=Binary)
+        self.model.battery_enabled = Param(initialize=self.param["battery"]["enabled"], within=Binary, mutable = True)
         self.model.SoC = Var(self.model.Period)
         self.model.Charge_power = Var(self.model.Period,initialize=0, bounds=( -self.param["battery"]["power"],0))
         self.model.Discharge_power = Var(self.model.Period,initialize=0, bounds=(0, self.param["battery"]["power"]))
@@ -205,7 +206,10 @@ class HouseHold():
         # opt = SolverFactory("cplex")
         opt.options['tmlim'] = 5
         opt.solve(self.model)
+        self.get_results()
 
+
+    def get_results(self):
         # unpack results
         index,charge_power, discharge_power, SoC, Grid_power,non_served, fcr_power,charge_on,discharge_on= ([] for i in range(9))
 
@@ -222,7 +226,7 @@ class HouseHold():
 
         self.result = pd.concat((self.data,pd.DataFrame({"index":index,'SoC':SoC, 'charge_power':charge_power,
                            'discharge_power':discharge_power, 'Grid_power':Grid_power,"non_served":non_served,"fcr_power":fcr_power,"charge_on":charge_on,"discharge_on":discharge_on}).set_index("index")), axis=1)
-        
+        return self.result
  
     def get_welfare(self):
         return sum_product(self.model.NonServedCost, self.model.Non_served_consumption)()
@@ -285,15 +289,19 @@ class Microgrid():
         # Grid matrix 
 
         self.capacity_matrix = self.param["capacity_matrix"]        
-        self.susceptance_matrix = 0.01* (np.array(self.param["capacity_matrix"], dtype=bool))
+        self.susceptance_matrix = 50* (np.array(self.param["capacity_matrix"], dtype=bool))
         self.incidence_graph = nx.bfs_tree(nx.from_numpy_matrix(np.array(self.capacity_matrix)),0)
         self.grid_connection = self.param["grid_connection"]
         self.R = 0.01/1000
         self. X = 0.07/1000
 
         self.grid_nodes = self.param["nodes"]
+        self.map_node_to_household = {node: set(house for house in households if house.node ==node) for node in self.grid_nodes}
         self.N_nodes = len(self.grid_nodes)
         self.horizon = self.households[0].horizon
+
+
+        self.data= pd.concat((house.data for house in self.households), axis=1,  keys=[house.ID for house in self.households])
     
     def create_mg(households, param):
         return Microgrid(households, param)
@@ -322,31 +330,31 @@ class Microgrid():
         # Define flows 
 
         def flow_rule(model, node1,node2, t):
-            return self.susceptance_matrix[node1][node2]*(model.theta[node1,t]-model.theta[node2,t]) == self.model.flows[node1,node2,t]
+            return self.susceptance_matrix[node1][node2]*(model.theta[node1,t]-model.theta[node2,t]) == model.flows[node1,node2,t]
         
         # kirchoff law
 
         def kirchoff_rule(model, node,t):
-            s = 0
+            s=0
             for i,house in enumerate(self.households):
                 if house.node == node:  
-                    s+=self.model.__getattribute__(f"house_{i}").Grid_power[t]
+                    s+=model.__getattribute__(f"house_{i}").Grid_power[t]
             if node == 0 :
-                return (s + sum(self.susceptance_matrix[node][j]*(model.theta[node,t]-model.theta[j,t]) for j in model.nodes if j != node)
-                        - self.model.external_import[t] == 0 )
+                return (s + sum(model.flows[node,j,t] for j in model.nodes if j != node)
+                        == self.model.external_import[t] )
             else:
-                return (s + sum(self.susceptance_matrix[node][j]*(model.theta[node,t]-model.theta[j,t]) for j in model.nodes if j != node) == 0 )
+                return (s + sum(model.flows[node,j,t] for j in model.nodes if j != node) == 0 )
         
         # capacity limitation
 
         def capacity_limitation_rule_up(model, node1,node2, t):
             if self.susceptance_matrix[node1][node2] != 0:
-                return self.susceptance_matrix[node1][node2]*(model.theta[node1,t]-model.theta[node2,t]) <= self.capacity_matrix[node1][node2]
+                return model.flows[node1,node2,t]<= self.capacity_matrix[node1][node2]
             else: 
                 return Constraint.Feasible
         def capacity_limitation_rule_down(model, node1,node2, t):
             if self.susceptance_matrix[node1][node2] != 0:
-                return self.susceptance_matrix[node1][node2]*(model.theta[node1,t]-model.theta[node2,t]) >=  - self.capacity_matrix[node1][node2]
+                return model.flows[node1,node2,t] >=  - self.capacity_matrix[node1][node2]
             else: 
                 return Constraint.Feasible
         
@@ -404,8 +412,6 @@ class Microgrid():
         self.model.voltage_lim_up_rule = Constraint(self.model.nodes,self.model.Period, rule=voltage_lim_up)
         self.model.voltage_lim_down_rule = Constraint(self.model.nodes,self.model.Period, rule=voltage_lim_down)
 
-
-
     def is_network_radial(self):
         pass
 
@@ -420,8 +426,8 @@ class Microgrid():
         self.model.nodes = Set(initialize=self.grid_nodes)
         self.model.Period = Set(initialize=self.households[0].model.Period)
         self.model.external_import = Var(self.model.Period, domain=NonNegativeReals)
-        #self.add_copperplate_constraints()
-        self.add_dcopf_constraints()
+        self.add_copperplate_constraints()
+        #self.add_dcopf_constraints()
         # self.add_lindistflow_constraints()
         
         # add limit on importation
@@ -442,15 +448,16 @@ class Microgrid():
         opt.options['tmlim'] = 20
         result_obj = opt.solve(self.model).write()
 
-        result_dic = {}
-        for i,house in enumerate(self.households):
-            result_dic[i]=[]
-            result_dic["index"]=[]
-            for j in self.model.__getattribute__(f"house_{i}").Period:
-                result_dic["index"].append(j)
-                result_dic[i].append(self.model.__getattribute__(f"house_{i}").Grid_power[j].value)
-        self.consumption = pd.DataFrame(result_dic).set_index("index")
+        # extract results
+        self.results = pd.concat((house.get_results() for house in self.households), axis=1,  keys=[house.ID for house in self.households])
+        
+        #TODO:
+        self.consumption = self.results.loc[:,(slice(None),"Grid_power")].copy()
+        self.consumption.columns = self.consumption.columns.droplevel(level=1) # level 1 corresponding to signals
         self.consumption["external_import"] = self.model.external_import.get_values()
+
+
+        # extract flows 
         self.flows = np.zeros((self.horizon,self.N_nodes,self.N_nodes))
         self.thetas = np.zeros((self.horizon,self.N_nodes))
         self.voltages = np.zeros((self.horizon,self.N_nodes))
@@ -465,31 +472,59 @@ class Microgrid():
                         self.flows[t,node2,node1] = self.model.flows[node2,node1,t].value
                     
 
-
-
-
-    def get_optimal_welfare():
-        pass
-
     def get_efficient_allocation (self) :
         self.build_model()
         self.run_model()
         optimal_welfare = self.model.obj.expr()
         optimal_allocation = self.consumption
         print(optimal_allocation, optimal_welfare)
-        
         return optimal_allocation, - optimal_welfare
     
-    def display_demand(self):
-        fig, ax  = plt.subplots(1,self.N_nodes)
-        S = 0 
-        for i,node in enumerate(self.grid_nodes):
-            for house in self.households:
-                if house.node == node:
-                    S+= house.data.consumption[0]
-                    ax[i].plot(house.data.consumption, label=f"house_{house.ID}")
-        print(S)
-        plt.legend()
+
+    def get_efficient_allocation_wo_battery (self) :
+        self.build_model()
+        for house in self.households:   
+            house.model.battery_enabled = 0
+        self.run_model()
+        optimal_welfare = self.model.obj.expr()
+        optimal_allocation = self.consumption
+        print(optimal_allocation, optimal_welfare)
+        return optimal_allocation, - optimal_welfare
+    
+    def display_setup(self):
+
+        inner = [f"House {house.ID}" for house in self.households]
+        outer = [inner,(["spot","spot"]+['lower left']*(len(self.households)-2))]
+
+        fig, axd = plt.subplot_mosaic(outer, layout="constrained")
+        for house in self.households:
+                self.households[house.ID].data.consumption.plot(kind="line", ax=axd[f"House {house.ID}"], label=f"Cons {house.ID}")
+                self.households[house.ID].data.generation.plot(kind="line", ax=axd[f"House {house.ID}"], label=f"Gen {house.ID}")
+                axd[f"House {house.ID}"].legend()
+                axd[f"House {house.ID}"].set_title(f"House {house.ID},\n Battery {house.param['battery']['power']}kW,{ house.param['battery']['duration']}h")
+                axd[f"House {house.ID}"].set_ylabel("Power (kW)")
+                axd[f"House {house.ID}"].set_xlabel("Time")
+        # Plot spot price as a function of time 
+        self.get_spot_price().plot(kind="line", ax=axd["spot"], label="Spot price")
+        axd["spot"].legend()
+        axd["spot"].set_title("Spot price")
+        axd["spot"].set_ylabel("Price (€/kWh)")
+        axd["spot"].set_xlabel("Time")
+
+        # Plot network graph representation 
+        G = nx.from_numpy_matrix(np.array(self.capacity_matrix))
+        weights = nx.get_edge_attributes(G,'weight').values()
+        print(weights)
+        scaling_factor = 1/max(weights)
+        alphas = [weight * scaling_factor for weight in weights]
+        nx.draw(G, pos=nx.planar_layout(G), with_labels=True, ax=axd["lower left"], width=alphas, node_size=100, font_size=10, font_color="white")
+        axd["lower left"].set_title("Network representation")
+        axd["lower left"].set_xlabel("Node")
+        axd["lower left"].set_ylabel("Node")
+
+        plt.tight_layout()
+        plt.suptitle("Initial setup")
+        
         plt.show()
 
     def display_gridflows(self):
@@ -536,8 +571,7 @@ class Microgrid():
         plt.show()
 
     def display_flows(self):
-        print(self.flows[1])
-        plt.imshow(self.flows[1], cmap='hot')
+        plt.imshow(self.flows[0], cmap='hot')
         plt.title("Flows at time 0")
         plt.xlabel("Node")
         plt.ylabel("Node")
@@ -552,6 +586,21 @@ class Microgrid():
         plt.ylabel("Node")
         plt.colorbar()
         plt.show()     
+
+    def display_results(self):
+        self.data.loc[:,( slice(None) , "consumption")].sum( axis =1).plot(kind="line", label="Total Consumption")
+        self.data.loc[:,( slice(None) , "generation")].sum( axis =1).plot(kind="line", label="Total Production")
+        
+        self.results.loc[:,( slice(None) , "Grid_power")].sum(axis=1).plot(kind="line", label="Total Consumption from grid")
+
+        self.results.loc[:,( slice(None) , "charge_power")].sum(axis=1).plot(kind="line", label="Total Charge from grid")
+        self.results.loc[:,( slice(None) , "discharge_power")].sum(axis=1).plot(kind="line", label="Total Discharge from grid")
+        plt.legend()
+        plt.axhline(y=self.grid_connection, color='r', linestyle='-')
+        # self.data.loc[:,( slice(None) , "spot_price")].mean( axis =1).plot(kind="line", label="spot_price", secondary_y=True,alpha=0.5)
+        #self.results.loc[:,( slice(None) , "non_served")].sum(axis=1).plot(kind="line", label="Total non served")
+        plt.grid()
+        plt.show()
 
 
     def get_bidder_ids(self):
@@ -632,7 +681,7 @@ if __name__=="__main__":
     print("Start loading household profiles")
     folder_path = "config\household_profile/"
     houses = []
-    for file in os.listdir(folder_path)[:3]:
+    for file in os.listdir(folder_path)[:10]:
         if file.endswith(".json"):
             household = json.load(open(folder_path+"/"+ file))
         house = HouseHold(household)
@@ -641,18 +690,23 @@ if __name__=="__main__":
         spot_price_path = "data/spot_price/2020.csv"
         fcr_price_path = "data/fcr_price/random_fcr.csv"
         house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
+        for i in range(205):
+            house.next_data()
         houses.append(house)
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
     print([house.ID for house in houses])
-    microgrid_1 =json.load(open("config\microgrid_profile/non_constrained_microgrid.json"))
+    microgrid_1 =json.load(open("config\microgrid_profile/default_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
-    MG.build_model()
-    MG.run_model()
-    MG.display_demand()
-    # MG.display_gridflows()
-    MG.display_angles()
-    MG.display_flows()
-    MG.display_voltages()
+    # MG.build_model()
+    # MG.run_model()
+    MG.get_efficient_allocation()
+    MG.display_results()
+    # MG.get_efficient_allocation_wo_battery()
+    # MG.display_setup()
+    # # # MG.display_gridflows()
+    # # MG.display_angles()
+    # # MG.display_flows()
+    # # MG.display_voltages()
 
 

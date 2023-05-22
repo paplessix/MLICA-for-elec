@@ -11,7 +11,7 @@ def _add_MG_specific_constraints_copperplate(self):
     logging.info("Chosen OPF Modelling method: Copper plate")
                  
     period = np.arange(self.MG_instance.horizon)
-
+    nodes = self.MG_instance.grid_nodes
     # Create variables 
 
     self.theta = {}
@@ -32,7 +32,32 @@ def _add_MG_specific_constraints_copperplate(self):
         self.Mip.add_constraint(ct = (self.Mip.sum(self.z[(i, 0, t)] for i,house in enumerate(self.MG_instance.households) ) == self.external_import[(t)]  ))
         self.Mip.add_constraint(ct= (self.external_import[(t)]  <= self.MG_instance.grid_connection))
 
+def _add_MG_specific_constraints_copperplate_wdp(self):
+    # Setup
+    logging.info("Adding MG specific constraints")
+    logging.info("Chosen OPF Modelling method: Copper plate")
+                 
+    period = np.arange(self.MG_instance.horizon)
+    nodes = self.MG_instance.grid_nodes
+    # Create variables      
 
+    self.external_import = {}
+    self.theta = {}
+    self.voltage = {}
+    self.flows = {}
+
+    # Update variables
+
+    self.external_import.update({(t) : self.Mip.continuous_var(name=f"external_import_{t}", lb = -self.Mip.infinity) for t in period})
+    self.theta.update({(n,t) : self.Mip.continuous_var(name=f"theta_{n}_{t}", lb = -self.Mip.infinity) for n in nodes for t in period})
+    self.voltage.update({(n,t) : self.Mip.continuous_var(name=f"voltage_{n}_{t}") for n in nodes for t in period})
+    self.flows.update({(n1,n2,t) : self.Mip.continuous_var(name=f"flow_{n1}_to_{n2}_{t}", lb = -self.Mip.infinity) for n1 in nodes for n2 in nodes for t in period})
+
+    # Add definition constraints
+    
+    for t in period:
+        self.Mip.add_constraint( ct= (self.external_import[(t)]  == self.Mip.sum(self.z[(i, k)] * self.bids[i][k, t] for i in range(0, self.N) for k in range(0, self.K[i]))))
+        self.Mip.add_constraint(ct =(self.external_import[(t)]  <= self.MG_instance.grid_connection))
 
 ####################### 2. DCOPF Constraints #########################################
 
