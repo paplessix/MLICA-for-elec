@@ -285,11 +285,11 @@ class Microgrid():
         # Grid matrix 
 
         self.capacity_matrix = self.param["capacity_matrix"]        
-        self.susceptance_matrix = 50* (np.array(self.param["capacity_matrix"], dtype=bool))
+        self.susceptance_matrix = 0.01* (np.array(self.param["capacity_matrix"], dtype=bool))
         self.incidence_graph = nx.bfs_tree(nx.from_numpy_matrix(np.array(self.capacity_matrix)),0)
         self.grid_connection = self.param["grid_connection"]
-        self.R = 10
-        self. X = 10
+        self.R = 0.01/1000
+        self. X = 0.07/1000
 
         self.grid_nodes = self.param["nodes"]
         self.N_nodes = len(self.grid_nodes)
@@ -298,6 +298,20 @@ class Microgrid():
     def create_mg(households, param):
         return Microgrid(households, param)
     
+    
+    def add_copperplate_constraints(self):
+        self.model.theta = Var(self.model.nodes, self.model.Period, domain=Reals)
+        self.model.voltage = Var(self.model.nodes, self.model.Period, domain=Reals)
+        self.model.flows = Var(self.model.nodes, self.model.nodes, self.model.Period, domain=Reals)
+
+        def conservation_rule(model,t):
+            s = 0
+            for i,house in enumerate(self.households):
+                s+=self.model.__getattribute__(f"house_{i}").Grid_power[t]
+            return s == model.external_import[t]
+        
+        self.model.conservation_cst = Constraint(self.model.Period, rule=conservation_rule)
+
 
     def add_dcopf_constraints(self):
         # Define specific variables for DCOPF
@@ -366,10 +380,10 @@ class Microgrid():
                     s+=self.model.__getattribute__(f"house_{i}").Grid_power[t]
 
             if node == 0:
-                return model.external_import[t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node))
+                return model.external_import[t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node)) + s
             else:
                 parent_node = self.incidence_graph.predecessors(node).__next__()
-                return s + model.flows[parent_node,node,t] == sum(model.flows[node,child,t] for child in self.incidence_graph.successors(node))
+                return  model.flows[parent_node,node,t] == sum(model.flows[node,child,t] for child in self.incidence_graph.successors(node)) + s
         def reactive_flow_rule(model,node,t):
             if node == 0:
                 return model.external_import_reactive[t] == sum(model.reactive_flows[node,child,t] for child in self.incidence_graph.successors(node))
@@ -406,9 +420,10 @@ class Microgrid():
         self.model.nodes = Set(initialize=self.grid_nodes)
         self.model.Period = Set(initialize=self.households[0].model.Period)
         self.model.external_import = Var(self.model.Period, domain=NonNegativeReals)
-
+        #self.add_copperplate_constraints()
         self.add_dcopf_constraints()
         # self.add_lindistflow_constraints()
+        
         # add limit on importation
         def limit_import_rule(model, t):
             return model.external_import[t] <= self.grid_connection
@@ -417,14 +432,16 @@ class Microgrid():
         
                 
         def objective_rule(model):
-            return sum(model.__getattribute__(f"house_{i}").objective.expr for i in range(len(self.households)))
+            return sum(model.__getattribute__(f"house_{i}").objective.expr for i in range(len(self.households))) + sum_product(self.households[0].model.SpotPrice,model.external_import) 
         
         self.model.obj = Objective(rule=objective_rule, sense=minimize)
         self.model.limit_import_constraint = Constraint(self.model.Period, rule=limit_import_rule)
     
     def run_model(self):
         opt = SolverFactory('glpk')
-        result_obj = opt.solve(self.model)
+        opt.options['tmlim'] = 20
+        result_obj = opt.solve(self.model).write()
+
         result_dic = {}
         for i,house in enumerate(self.households):
             result_dic[i]=[]
@@ -462,6 +479,18 @@ class Microgrid():
         print(optimal_allocation, optimal_welfare)
         
         return optimal_allocation, - optimal_welfare
+    
+    def display_demand(self):
+        fig, ax  = plt.subplots(1,self.N_nodes)
+        S = 0 
+        for i,node in enumerate(self.grid_nodes):
+            for house in self.households:
+                if house.node == node:
+                    S+= house.data.consumption[0]
+                    ax[i].plot(house.data.consumption, label=f"house_{house.ID}")
+        print(S)
+        plt.legend()
+        plt.show()
 
     def display_gridflows(self):
         fig, ax = plt.subplots(self.N_nodes,self.N_nodes)
@@ -507,8 +536,8 @@ class Microgrid():
         plt.show()
 
     def display_flows(self):
-
-        plt.imshow(self.flows[0], cmap='hot')
+        print(self.flows[1])
+        plt.imshow(self.flows[1], cmap='hot')
         plt.title("Flows at time 0")
         plt.xlabel("Node")
         plt.ylabel("Node")
@@ -603,7 +632,7 @@ if __name__=="__main__":
     print("Start loading household profiles")
     folder_path = "config\household_profile/"
     houses = []
-    for file in os.listdir(folder_path)[:10]:
+    for file in os.listdir(folder_path)[:3]:
         if file.endswith(".json"):
             household = json.load(open(folder_path+"/"+ file))
         house = HouseHold(household)
@@ -616,10 +645,11 @@ if __name__=="__main__":
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
     print([house.ID for house in houses])
-    microgrid_1 =json.load(open("config\microgrid_profile/default_microgrid_radial.json"))
+    microgrid_1 =json.load(open("config\microgrid_profile/non_constrained_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
     MG.build_model()
     MG.run_model()
+    MG.display_demand()
     # MG.display_gridflows()
     MG.display_angles()
     MG.display_flows()

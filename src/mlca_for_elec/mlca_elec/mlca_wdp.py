@@ -20,7 +20,7 @@ class MLCA_WDP:
         self.z = {}  # decision variables. z(i,k) = 1 <=> bidder i gets the kth bundle out of 1,...,K[i] from his set of bundle-value pairs
         self.x_star = np.zeros((self.N, self.M), dtype=int)  # optimal allocation of the winner determination problem
 
-    def initialize_mip(self, verbose=0):
+    def initialize_mip(self, verbose=0, spot_prices=None):
 
         for i in range(0, self.N):  # over bidders i \in N
             # add decision variables
@@ -37,8 +37,9 @@ class MLCA_WDP:
                                     ctname="CT Intersection Item {}".format(m))
 
         # add objective
-        objective = self.Mip.sum(
+        objective = (self.Mip.sum(
             self.z[(i, k)] * self.bids[i][k, self.M] for i in range(0, self.N) for k in range(0, self.K[i]))
+            - self.Mip.scal_prod([self.external_import[j] for j in range(0, self.M)], spot_prices) )
         self.Mip.maximize(objective)
 
         if verbose == 1:
