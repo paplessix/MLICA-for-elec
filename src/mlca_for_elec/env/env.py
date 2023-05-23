@@ -45,7 +45,8 @@ class HouseHold():
         df = pd.concat([data_generation, data_consumption, data_fcr_price, data_spot_price], axis=1)
         
         df["non_served_cost"] = self.param["consumption"]["cost_of_non_served_energy"]
-        self.generator_data = ( df.iloc[self.horizon*i:self.horizon*(i+1), : ].reset_index(drop=True) for i in range(365) )
+        self.df = df[:2400]
+        self.generator_data = ( self.df.iloc[self.horizon*i:self.horizon*(i+1), : ].reset_index(drop=True) for i in range(365) )
         
         self.data = next(self.generator_data)
 
@@ -82,7 +83,7 @@ class HouseHold():
 
     def cost_function(self,model):
         # cost =sum_product(model.SpotPrice, model.Grid_power) + sum_product(model.NonServedCost, model.Non_served_consumption) - sum_product(model.FCRPrice, model.FCR)
-        cost = +sum_product(model.NonServedCost, model.Non_served_consumption) - np.dot(model.Consumption,model.NonServedCost)
+        cost = -sum_product(model.NonServedCost, model.Non_served_consumption) + np.dot(model.Consumption,model.NonServedCost)
         return cost
     
     #    Run 
@@ -113,7 +114,7 @@ class HouseHold():
         self.model.SoC = Var(self.model.Period)
         self.model.Charge_power = Var(self.model.Period,initialize=0, bounds=( -self.param["battery"]["power"],0))
         self.model.Discharge_power = Var(self.model.Period,initialize=0, bounds=(0, self.param["battery"]["power"]))
-        self.model.Grid_power = Var(self.model.Period, bounds=(0, np.inf), within= Integers)
+        self.model.Grid_power = Var(self.model.Period, bounds=(0, np.inf), within= Reals)
         self.model.Non_served_consumption = Var(self.model.Period,initialize= 0, bounds=(0, np.inf))
         self.model.Curtailed_generation = Var(self.model.Period, initialize=0, bounds=(0, np.inf))
         self.model.charge_on = Var(self.model.Period, within=Binary)
@@ -198,7 +199,7 @@ class HouseHold():
         self.model.household_node_cst = Constraint(self.model.Period, rule=houshold_node)
         self.model.grid_loadmax_cst = Constraint(self.model.Period, rule=grid_maxload)
 
-        self.model.objective = Objective(rule= self.cost_function, sense=minimize)
+        self.model.objective = Objective(rule= self.cost_function, sense=maximize)
 
 
     def run_milp(self):
@@ -211,7 +212,7 @@ class HouseHold():
 
     def get_results(self):
         # unpack results
-        index,charge_power, discharge_power, SoC, Grid_power,non_served, fcr_power,charge_on,discharge_on= ([] for i in range(9))
+        index,charge_power, discharge_power, SoC, Grid_power,non_served, fcr_power,charge_on,discharge_on, curtailed_power= ([] for i in range(10))
 
         for i in self.model.Period:
             index.append(i)
@@ -223,9 +224,10 @@ class HouseHold():
             fcr_power.append(self.model.FCR[i].value)
             charge_on.append(self.model.charge_on[i].value)
             discharge_on.append(self.model.discharge_on[i].value)
+            curtailed_power.append(self.model.Curtailed_generation[i].value)
 
         self.result = pd.concat((self.data,pd.DataFrame({"index":index,'SoC':SoC, 'charge_power':charge_power,
-                           'discharge_power':discharge_power, 'Grid_power':Grid_power,"non_served":non_served,"fcr_power":fcr_power,"charge_on":charge_on,"discharge_on":discharge_on}).set_index("index")), axis=1)
+                           'discharge_power':discharge_power, 'Grid_power':Grid_power,"non_served":non_served,"fcr_power":fcr_power,"charge_on":charge_on,"discharge_on":discharge_on,"curtailed_power" : curtailed_power}).set_index("index")), axis=1)
         return self.result
  
     def get_welfare(self):
@@ -263,7 +265,7 @@ class HouseHold():
 
     def display_planning(self):
         fig,ax = plt.subplots(2,2, figsize=(10,10))
-
+        self.result["non_served"] = self.result["non_served"].clip(lower=0)
         self.result[["charge_power","discharge_power","Grid_power","non_served"]].plot(kind="bar", stacked=True, ax=ax[0,0])  
         
         ax[1,0].axhline(y=self.param["battery"]["max_soc"], color='r', linestyle='-')
@@ -425,7 +427,7 @@ class Microgrid():
         # add grid variables
         self.model.nodes = Set(initialize=self.grid_nodes)
         self.model.Period = Set(initialize=self.households[0].model.Period)
-        self.model.external_import = Var(self.model.Period, domain=NonNegativeReals)
+        self.model.external_import = Var(self.model.Period, domain=NonNegativeReals, initialize = 0)
         self.add_copperplate_constraints()
         #self.add_dcopf_constraints()
         # self.add_lindistflow_constraints()
@@ -438,9 +440,9 @@ class Microgrid():
         
                 
         def objective_rule(model):
-            return sum(model.__getattribute__(f"house_{i}").objective.expr for i in range(len(self.households))) + sum_product(self.households[0].model.SpotPrice,model.external_import) 
+            return sum(model.__getattribute__(f"house_{i}").objective.expr for i in range(len(self.households))) - sum_product(self.households[0].model.SpotPrice,model.external_import) 
         
-        self.model.obj = Objective(rule=objective_rule, sense=minimize)
+        self.model.obj = Objective(rule=objective_rule, sense=maximize)
         self.model.limit_import_constraint = Constraint(self.model.Period, rule=limit_import_rule)
     
     def run_model(self):
@@ -478,7 +480,7 @@ class Microgrid():
         optimal_welfare = self.model.obj.expr()
         optimal_allocation = self.consumption
         print(optimal_allocation, optimal_welfare)
-        return optimal_allocation, - optimal_welfare
+        return optimal_allocation, optimal_welfare
     
 
     def get_efficient_allocation_wo_battery (self) :
@@ -489,7 +491,7 @@ class Microgrid():
         optimal_welfare = self.model.obj.expr()
         optimal_allocation = self.consumption
         print(optimal_allocation, optimal_welfare)
-        return optimal_allocation, - optimal_welfare
+        return optimal_allocation, optimal_welfare
     
     def display_setup(self):
 
@@ -588,19 +590,25 @@ class Microgrid():
         plt.show()     
 
     def display_results(self):
-        self.data.loc[:,( slice(None) , "consumption")].sum( axis =1).plot(kind="line", label="Total Consumption")
-        self.data.loc[:,( slice(None) , "generation")].sum( axis =1).plot(kind="line", label="Total Production")
-        
+        (self.data.loc[:,( slice(None) , "consumption")].sum( axis =1)-self.data.loc[:,( slice(None) , "generation")].sum( axis =1)).plot(kind="line", label="Residual Load")
+
+        # self.data.loc[:,( slice(None) , "generation")].sum( axis =1).plot(kind="line", label="Total Production")
+        self.results.loc[:,( slice(None) , "non_served")].sum(axis=1).plot(kind="line", label="Total non served")
+        self.results.loc[:,( slice(None) , "curtailed_power")].sum(axis=1).plot(kind="line", label="Curtailed")
         self.results.loc[:,( slice(None) , "Grid_power")].sum(axis=1).plot(kind="line", label="Total Consumption from grid")
 
         self.results.loc[:,( slice(None) , "charge_power")].sum(axis=1).plot(kind="line", label="Total Charge from grid")
         self.results.loc[:,( slice(None) , "discharge_power")].sum(axis=1).plot(kind="line", label="Total Discharge from grid")
         plt.legend()
         plt.axhline(y=self.grid_connection, color='r', linestyle='-')
-        # self.data.loc[:,( slice(None) , "spot_price")].mean( axis =1).plot(kind="line", label="spot_price", secondary_y=True,alpha=0.5)
+        self.data.loc[:,( slice(None) , "spot_price")].mean( axis =1).plot(kind="line", label="spot_price", secondary_y=True,alpha=0.5)
         #self.results.loc[:,( slice(None) , "non_served")].sum(axis=1).plot(kind="line", label="Total non served")
         plt.grid()
         plt.show()
+
+        for house in self.households:
+            house.display_planning()
+
 
 
     def get_bidder_ids(self):
@@ -612,7 +620,7 @@ class Microgrid():
     def get_uniform_random_bids(self, bidder_id,number_of_bids,seed=None):
         if seed is not None:
             np.random.seed(seed)
-        bids =[np.random.randint(self.households[bidder_id].data.consumption.max()*1.5,size=self.horizon) for i in range(number_of_bids)]
+        bids =[np.random.randint(int(min(self.households[bidder_id].data.consumption.max()*1.5,self.grid_connection)),size=self.horizon) for i in range(number_of_bids)]
         #bids = [np.random.rand(self.horizon)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
         res = []
         for bid in tqdm(bids):
@@ -674,14 +682,14 @@ class Microgrid():
         self.households[bidder_id].model.grid_exchange_fix = Constraint(self.households[bidder_id].model.Period, rule=grid_exchange_fix)
         self.households[bidder_id].run_milp()
         self.households[bidder_id].model.objective.expr()
-        return  - self.households[bidder_id].model.objective.expr()
+        return  self.households[bidder_id].model.objective.expr()
             
 
 if __name__=="__main__":
     print("Start loading household profiles")
-    folder_path = "config\household_profile/"
+    folder_path = "config\experiment1\households"
     houses = []
-    for file in os.listdir(folder_path)[:10]:
+    for file in os.listdir(folder_path)[:3]:
         if file.endswith(".json"):
             household = json.load(open(folder_path+"/"+ file))
         house = HouseHold(household)
@@ -689,20 +697,21 @@ if __name__=="__main__":
         consumption_path = f"data/consumption/Reference-{house.param['consumption']['type']}.csv"
         spot_price_path = "data/spot_price/2020.csv"
         fcr_price_path = "data/fcr_price/random_fcr.csv"
-        house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-        for i in range(205):
+        house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path, type = float)
+        for i in range(1):
             house.next_data()
         houses.append(house)
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
     print([house.ID for house in houses])
-    microgrid_1 =json.load(open("config\microgrid_profile/default_microgrid.json"))
+    microgrid_1 =json.load(open("config\experiment1\microgrid\exp1_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
     # MG.build_model()
     # MG.run_model()
     MG.get_efficient_allocation()
     MG.display_results()
-    # MG.get_efficient_allocation_wo_battery()
+    MG.get_efficient_allocation_wo_battery()
+    MG.display_results()
     # MG.display_setup()
     # # # MG.display_gridflows()
     # # MG.display_angles()

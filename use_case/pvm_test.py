@@ -37,8 +37,8 @@ print("Start compute social welfare")
 
 microgrid_1 =json.load(open("config\microgrid_profile/default_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
-Qinit =10
-Qmax = 30
+Qinit =50
+Qmax = 60
 Qround=1    
 L=30000
 sample_weight_on = False
@@ -58,7 +58,7 @@ NN_parameters = defaultdict(dict)
 
 
 base ={"batch_size": 1,
-        "epochs":25,
+        "epochs":150,
         "l2": 1e-5,
         "loss_func": "F.l1_loss",
         "lr": 0.0001,
@@ -66,7 +66,7 @@ base ={"batch_size": 1,
         "num_neurons":150 ,
         "optimizer": "Adam",
         "ts" :1, 
-        "state_dict" : "model/test.pt"  }
+        "state_dict" :None  }
 
 
 for house in MG.households:

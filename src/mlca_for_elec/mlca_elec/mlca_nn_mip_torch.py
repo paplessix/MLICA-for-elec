@@ -292,7 +292,7 @@ class NN_MIP_TORCH:
                 # decision variables
                 if v == 0:
                     self.z.update(
-                        {(i, 0, j): self.Mip.integer_var(name="x({})_{}".format(i, j)) for j in
+                        {(i, 0, j): self.Mip.continuous_var(name="x({})_{}".format(i, j)) for j in
                          range(0, J)})  # binary variables for allocation
                 self.z.update({(i, layer, r): self.Mip.continuous_var(name="z({},{})_{}".format(i, layer, r)) for r in
                                range(0, R)})  # output value variables after activation

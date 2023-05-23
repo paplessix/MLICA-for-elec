@@ -15,14 +15,15 @@ def preprocessor_solar(df, max_capacity, type):
 
 def preprocessor_consumption(df, max_capacity, type):
     """Preprocess consumption data"""
-    df = (df/df.max()*max_capacity).apply(lambda x  : type(x))
+
+    df = (df/df.mean()/2*max_capacity).apply(lambda x  : type(x))
     df.rename("consumption", inplace=True)
     return df
 
 def preprocessor_spot_price(df):
     """Preprocess spot price data"""
     df.rename("spot_price", inplace=True)
-    return df/1000
+    return df/1000*2 #Mean around 100
 
 def preprocessor_fcr_price(df):
     """Preprocess fcr price data"""
