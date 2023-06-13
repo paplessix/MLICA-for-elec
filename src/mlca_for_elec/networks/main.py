@@ -112,8 +112,13 @@ def train(model, device, train_loader, optimizer, epoch, dataset_info, loss_func
         targets.extend(target.detach().cpu().numpy().flatten().tolist())
         loss = loss_func(output.flatten(), target.flatten())
         total_loss += float(loss) * len(preds)
-        loss.backward()
+
+        # L1 regularization 
+        l1_penalty = dataset_info["l1"] * sum([param.abs().sum()for param in model.parameters()])
+        loss_with_penalty = loss + l1_penalty
+        loss_with_penalty.backward()
         optimizer.step()
+
     metrics = {'loss': total_loss / len(train_loader)}
     preds, targets = (np.array(preds) * dataset_info['target_max']).tolist(), \
                      (np.array(targets) * dataset_info['target_max']).tolist()
@@ -121,7 +126,6 @@ def train(model, device, train_loader, optimizer, epoch, dataset_info, loss_func
     return metrics
 
 def validate(model, device, val_dataset, dataset_info, loss_func):
-    print(val_dataset)
     #model.eval()
     total_loss = 0
     data, targets = val_dataset[:][0], val_dataset[:][1]
@@ -191,7 +195,7 @@ def test(model, device, dataset, valid_true, epoch, dataset_info, loss_func, plo
 
 
 def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None, log_path=None, eval_test=False,
-                save_datasets=False):
+                save_datasets=False, plot = False, validation_at_each_epoch = False):
     device = torch.device("cpu")
 
     model = Net(input_dim=config['input_dim'], layer_type=config['layer_type'],
@@ -237,7 +241,7 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
             writer.add_scalar('Loss/train', metrics['train'][epoch]["loss"], epoch)
             # writer.add_scalar('Pearson/train', metrics['train'][epoch]["r"], epoch)
             writer.add_scalar('MAE/train', metrics['train'][epoch]["mae"], epoch)
-            if val_dataset is not None:
+            if val_dataset is not None and validation_at_each_epoch:
                 metrics["valid"][epoch] = validate(model, device, val_dataset, config, loss_func=loss_func)
                 writer.add_scalar('Loss/valid', metrics['valid'][epoch]["loss"], epoch)
                 # writer.add_scalar('Pearson/valid', metrics['valid'][epoch]["r"], epoch)
@@ -263,7 +267,7 @@ def train_model(train_dataset, config, logs, val_dataset=None, test_dataset=None
 
     if eval_test:
         if test_dataset is not None:
-            metrics['test'][epoch] = test(model, device, test_dataset, valid_true=False, epoch=epoch, plot=True,
+            metrics['test'][epoch] = test(model, device, test_dataset, valid_true=False, epoch=epoch, plot=plot,
                                           log_path=None, dataset_info=config, loss_func=loss_func)
     logs['metrics'] = metrics
     if save_datasets:
@@ -291,8 +295,8 @@ def get_training_data(MicroGrid_instance, num_train_data, seed, bidder_id, layer
 
 
 def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch_size, num_hidden_layers,
-                num_hidden_units, optimizer, epochs, loss_func, lr, l2, normalize, normalize_factor, eval_test=False, state_dict=None,
-                log_path=None, save_datasets=False, ts = 1.0):
+                num_hidden_units, optimizer, epochs, loss_func, lr, l2,l1, normalize, normalize_factor, eval_test=False, state_dict=None,
+                log_path=None, save_datasets=False, ts = 1.0, plot =False):
     logs = defaultdict()
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -315,12 +319,13 @@ def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch
         'target_max': dataset_info['target_max'],
         'optimizer': optimizer,
         'l2': l2,
+        'l1':l1,
         'ts': ts,
         'state_dict': state_dict,
     }
 
     model, logs = train_model(train_dataset, config, logs, val_dataset=val_dataset, test_dataset=test_dataset,
-                              log_path=None, eval_test=eval_test, save_datasets=save_datasets)
+                              log_path=None, eval_test=eval_test, save_datasets=save_datasets, plot = False, validation_at_each_epoch = False)
     if log_path is not None:
         os.makedirs(log_path, exist_ok=True)
         json.dump(logs, open(os.path.join(log_path, '{}.json'.format(seed)), 'w'), indent=4, sort_keys=True,

@@ -90,20 +90,29 @@ def generate_pt_data(MicroGrid_instance, num_train_data, seed, bidder_id, normal
     house = MicroGrid_instance.households[bidder_id]
     dataset_info = {'N': len(MicroGrid_instance.households), 'M':MicroGrid_instance.horizon, 'world': 'MicroGrid'} # TODO: fix this
     #bids = np.asarray(MicroGrid_instance.get_uniform_random_bids(bidder_id, 4*num_train_data, seed))
-    if house.profile_path is not None :
-        bids = pd.read_csv(house.profile_path).to_numpy()[:,1:]
+    if house.profile_path_train is not None :
+        bids_train = pd.read_csv(house.profile_path_train).to_numpy()[:,1:]
+        bids_val_test = pd.read_csv(house.profile_path_valtest).to_numpy()[:,1:]
     else: 
-        bids = pd.read_csv("data\cost_function\dataset_0.csv").to_numpy()[:,1:]
-    print(bids.shape)
-    X = bids[:,:-1].astype(np.float32)
-    y = bids[:,-1].astype(np.float32)
+        bids_train = pd.read_csv("data\cost_function\dataset_0.csv").to_numpy()[:,1:]
+        bids_val_test = pd.read_csv("data\cost_function/test_dataset_0.csv").to_numpy()[:,1:]
+
+    # Load train bids
+    X = bids_train[:,:-1].astype(np.float32)
+    y = bids_train[:,-1].astype(np.float32)
 
     X_train, y_train = X[:num_train_data], \
                        y[:num_train_data]
-    X_val, y_val = X[num_train_data:int(len(X) * 0.2 + num_train_data)], \
-                   y[num_train_data:int(len(X) * 0.2 + num_train_data)]
-    X_test, y_test = X[int(len(X) * 0.2 + num_train_data):], \
-                     y[int(len(X) * 0.2 + num_train_data):]
+    # Load val test bids
+    X = bids_val_test[:,:-1].astype(np.float32)
+    y = bids_val_test[:,-1].astype(np.float32)
+
+    X_val, y_val = X[:int(len(X)*0.2)], \
+                   y[:int(len(X)*0.2)]
+    X_test, y_test = X[int(len(X)*0.2):], \
+                     y[int(len(X)*0.2):]
+    
+    print(f"Dataset size : Train {X_train.shape}, Val {X_val.shape}, Test {X_test.shape}")
     
     print(X_train.shape, y_train.shape, X_val.shape, y_val.shape, X_test.shape, y_test.shape)
     if normalize:

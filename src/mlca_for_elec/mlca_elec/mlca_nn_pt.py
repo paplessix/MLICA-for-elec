@@ -99,6 +99,7 @@ class MLCA_NN:
             'target_max': target_max,
             'optimizer': self.model_parameters['optimizer'],
             'l2': self.model_parameters['l2'],
+            'l1': self.model_parameters['l1'],
             'ts': self.model_parameters['ts'],
             'state_dict': self.model_parameters['state_dict'],
         }
@@ -108,7 +109,8 @@ class MLCA_NN:
         self.model = model
 
         self.history = logs
-        logging.debug('loss: {:.7f}, kt: {:.4f}, r: {:.4f}'.format(
+        logging.warning('mae: {:.4f},loss: {:.7f}, kt: {:.4f}, r: {:.4f}'.format(
+            logs['metrics']['train'][epochs]['mae'],
             logs['metrics']['train'][epochs]['loss'],
             logs['metrics']['train'][epochs]['kendall_tau'],
             logs['metrics']['train'][epochs]['r']))

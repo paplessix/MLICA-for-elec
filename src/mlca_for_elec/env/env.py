@@ -3,11 +3,12 @@ import json
 import pandas as pd
 import itertools as iter
 import numpy as np
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 import matplotlib.pyplot as plt
 from mlca_for_elec.env.util_env import *
 from pyomo.environ import *
 from functools import reduce
+from scipy import stats
 import pyomo.kernel as pmo
 import networkx as nx 
 from pyutilib.services import register_executable, registered_executable
@@ -22,10 +23,12 @@ class HouseHold():
         self.data = None
         self.result = None
         self.horizon = 24
+        self.is_build_milp  = None
 
-    def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path, profile_path= None, type = int):
+    def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path, profile_path_train= None, profile_path_valtest=None, type = int):
 
-        self.profile_path = profile_path
+        self.profile_path_train = profile_path_train
+        self.profile_path_valtest = profile_path_valtest
         if self.param["generation"]["type"] == "wind":
             preprocessor_generation = preprocessor_wind
             column_name ="WS10m"
@@ -49,6 +52,13 @@ class HouseHold():
         self.generator_data = ( self.df.iloc[self.horizon*i:self.horizon*(i+1), : ].reset_index(drop=True) for i in range(365) )
         
         self.data = next(self.generator_data)
+
+
+        # Compute average consumption profile 
+        inter = self.df.copy()
+        inter["mod"] = inter.index%self.horizon
+        self.average_consumption = inter.groupby(["mod"]).mean()["consumption"]
+
 
     def next_data(self):
         try:
@@ -201,6 +211,9 @@ class HouseHold():
 
         self.model.objective = Objective(rule= self.cost_function, sense=maximize)
 
+
+        # Declare model as istantiated
+        self.is_build_milp = True
 
     def run_milp(self):
         opt = SolverFactory("glpk", executable="solver\glpk\glpsol.exe")
@@ -617,11 +630,42 @@ class Microgrid():
     def get_good_ids(self):
         return [i for i in range(self.horizon)]
     
+
     def get_uniform_random_bids(self, bidder_id,number_of_bids,seed=None):
+
         if seed is not None:
             np.random.seed(seed)
-        bids =[np.random.randint(int(min(self.households[bidder_id].data.consumption.max()*1.5,self.grid_connection)),size=self.horizon) for i in range(number_of_bids)]
-        #bids = [np.random.rand(self.horizon)*self.households[bidder_id].param["consumption"]["max_consumption"] for i in range(number_of_bids)]
+        #bids = [l1_ball_sampling(radius=100, dim=self.horizon) for i in range(number_of_bids)]
+        bids = uniform_sampling(number_of_bids, [10 for i in range(self.horizon)])
+        res = []
+        for bid in tqdm(bids):
+            val = self.calculate_value(bidder_id,bid)
+            bid = np.append(bid,val)
+            res.append(bid)
+        return res
+    
+    def get_uniformly_spaced_bids(self, bidder_id, number_of_bids, seed= None):
+        bids = uniform_spacing_sampling(number_of_bids,np.asarray([10 for i in range(self.horizon)]))
+        res = []
+        for bid in tqdm(bids):
+            val = self.calculate_value(bidder_id,bid)
+            bid = np.append(bid,val)
+            res.append(bid)
+        return res
+    
+    def get_greedy_sampled_bids(self, bidder_id, number_of_bids, seed= None):
+        bids = greedy_sampling(self.households[bidder_id].average_consumption, number_of_bids, [10 for i in range(self.horizon)])
+        res = []
+        for bid in tqdm(bids):
+            val = self.calculate_value(bidder_id,bid)
+            bid = np.append(bid,val)
+            res.append(bid)
+        return res
+    
+    def get_metropolis_samped_bids(self, bidder_id, number_of_bids, seed= None):
+        min_cons = 50
+        max_cons = 66.8
+        bids = metropolis_sampling(self.households[bidder_id].average_consumption, number_of_bids, [10 for i in range(self.horizon)], min_cons, max_cons)
         res = []
         for bid in tqdm(bids):
             val = self.calculate_value(bidder_id,bid)
@@ -629,18 +673,56 @@ class Microgrid():
             res.append(bid)
         return res
 
-    def generate_dataset(self,bidder_id):
+    def get_kde_random_bids(self, bidder_id,number_of_bids,seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        
+        data = self.households[bidder_id].df["consumption"].to_numpy().reshape(-1,24).T
+        noise = np.random.normal(0,1, size = data.shape)*1.5
+
+        data = data+noise
+        kde = stats.gaussian_kde(data)
+        bids = kde.resample(number_of_bids).T[:,:self.horizon]
+
+        # bids = greedy_sampling(self.households[bidder_id].average_consumption, number_of_bids, [10 for i in range(self.horizon)])
+        # bids = fps_sampling(number_of_bids, [10 for i in range(self.horizon)])
+        res = []
+        for bid in tqdm(bids):
+            val = self.calculate_value(bidder_id,bid)
+            bid = np.append(bid,val)
+            res.append(bid)
+        return res
+
+    def generate_dataset(self,bidder_id, dataset_path, number_of_bids):
         print("-----------------------------------")
         print("Generating dataset")
         print("-----------------------------------")
         print(f"Generating dataset for bidder {bidder_id}")
         print("Optimal allocation is : ")
         print(self.households[bidder_id].get_optimal_welfare())
-
-        bids = self.get_uniform_random_bids(bidder_id,2000)
+        # bids = self.get_greedy_sampled_bids(bidder_id, number_of_bids)
+        #bids = self.get_uniformly_spaced_bids(bidder_id, number_of_bids)
+        # bids = self.get_kde_random_bids(bidder_id,number_of_bids)
+        # bids = self.get_metropolis_samped_bids(bidder_id,number_of_bids)
+        bids = self.get_uniform_random_bids(bidder_id,number_of_bids)
         df = pd.DataFrame(bids)
         df.rename(columns ={self.horizon:"value"}, inplace=True)
-        df.to_csv(f"data/cost_function/dataset_{bidder_id}.csv")
+        df.to_csv(dataset_path + f"/dataset_{bidder_id}.csv")
+
+    def generate_test_dataset(self, bidder_id, dataset_path, number_of_bids):
+        print("-----------------------------------")
+        print("Generating test dataset")
+        print("-----------------------------------")
+        print(f"Generating test dataset for bidder {bidder_id}")
+        print("Optimal allocation is : ")
+        print(self.households[bidder_id].get_optimal_welfare())
+        # bids = self.get_uniformly_spaced_bids(bidder_id, number_of_bids)
+        # bids = self.get_metropolis_samped_bids(bidder_id,number_of_bids)
+        bids = self.get_uniform_random_bids(bidder_id,number_of_bids)
+
+        df = pd.DataFrame(bids)
+        df.rename(columns ={self.horizon:"value"}, inplace=True)
+        df.to_csv(dataset_path + f"/test_dataset_{bidder_id}.csv")
 
     def get_random_feasible_bundle_set(self):
         self.build_model()
@@ -676,13 +758,21 @@ class Microgrid():
         return house_0.get_spot_price()
 
     def calculate_value(self,bidder_id,bundle):
-        self.households[bidder_id].build_milp()
-        def grid_exchange_fix(model, i):
-            return model.Grid_power[i] == bundle[i]
-        self.households[bidder_id].model.grid_exchange_fix = Constraint(self.households[bidder_id].model.Period, rule=grid_exchange_fix)
-        self.households[bidder_id].run_milp()
-        self.households[bidder_id].model.objective.expr()
-        return  self.households[bidder_id].model.objective.expr()
+        if not self.households[bidder_id].param["battery"]["enabled"] :
+            val = np.minimum(bundle, self.households[bidder_id].data["consumption"]).sum()*self.households[bidder_id].param["consumption"]["cost_of_non_served_energy"]
+        else : 
+
+            if  not self.households[bidder_id].is_build_milp or self.households[bidder_id].model.nobjectives()==0:
+                self.households[bidder_id].build_milp()
+
+            def grid_exchange_fix(model, i):
+                return model.Grid_power[i] == bundle[i]
+            if hasattr( self.households[bidder_id].model, "grid_exchange_fix"):
+                 self.households[bidder_id].model.del_component(self.households[bidder_id].model.grid_exchange_fix)
+            self.households[bidder_id].model.grid_exchange_fix = Constraint(self.households[bidder_id].model.Period, rule=grid_exchange_fix)
+            self.households[bidder_id].run_milp()
+            val = self.households[bidder_id].model.objective.expr()
+        return  val
             
 
 if __name__=="__main__":
@@ -708,11 +798,12 @@ if __name__=="__main__":
     MG = Microgrid(houses, microgrid_1)
     # MG.build_model()
     # MG.run_model()
-    MG.get_efficient_allocation()
-    MG.display_results()
-    MG.get_efficient_allocation_wo_battery()
-    MG.display_results()
-    # MG.display_setup()
+    # MG.get_efficient_allocation()
+    # MG.display_results()
+    # MG.get_efficient_allocation_wo_battery()
+    # MG.display_results()
+    MG.households[0].display_planning()
+    # MG.display_setup()ex
     # # # MG.display_gridflows()
     # # MG.display_angles()
     # # MG.display_flows()

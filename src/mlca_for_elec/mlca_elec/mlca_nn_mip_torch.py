@@ -184,7 +184,7 @@ class NN_MIP_TORCH:
         logging.info('Rel. Gap: {} %'.format(details.mip_relative_gap))
         logging.debug('N. Iter : %s', details.nb_iterations)
         logging.debug('Hit Lim.: %s', details.has_hit_limit())
-        logging.debug('Objective Value: %s', solved_mip.objective_value)
+        logging.warning('Objective Value: %s', solved_mip.objective_value)
         logging.info('\n')
         return {'n_iter': details.nb_iterations, 'rel. gap': details.mip_relative_gap,
                 'hit_limit': details.has_hit_limit(), 'time': details.time}
@@ -428,7 +428,7 @@ class NN_MIP_TORCH:
                 # decision variables
                 if v == 0:
                     self.z.update(
-                        {(i, 0, j): self.Mip.integer_var(name="x({})_{}".format(i, j)) for j in
+                        {(i, 0, j): self.Mip.continuous_var(name="x({})_{}".format(i, j)) for j in
                          range(0, J)})  # binary variables for allocation
                 self.z.update(
                     {(i, layer, r): self.Mip.continuous_var(lb=0, name="z({},{})_{}".format(i, layer, r)) for r in
@@ -520,7 +520,7 @@ class NN_MIP_TORCH:
         # linear matrix constraints: Wz^(i-1)+b = z^(i)-s^(i)
         for i in range(0, self.N):
             self._add_matrix_constraints(i, verbose=verbose)
-        
+
         # allocation constraints for x^i's
         for j in range(0, self.M):
             self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 10000), # TODO: Remove

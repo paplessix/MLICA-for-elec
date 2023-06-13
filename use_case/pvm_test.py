@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(message)s', filemode='w')
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 
 print("Start loading household profiles")
-folder_path = "config\household_profile\\"
+folder_path = "config\experiment1\households"
 houses = []
 for file in os.listdir(folder_path)[:3]:
     if file.endswith(".json"):
@@ -28,14 +28,14 @@ for file in os.listdir(folder_path)[:3]:
     consumption_path = f"data/consumption/Reference-{house.param['consumption']['type']}.csv"
     spot_price_path = "data/spot_price/2020.csv"
     fcr_price_path = "data/fcr_price/random_fcr.csv"
-    house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-    for i in range(208):
+    house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path, type = float)
+    for i in range(0):
         house.next_data()
     houses.append(house)
 print(f"Loaded {len(houses)} households")
 print("Start compute social welfare")
 
-microgrid_1 =json.load(open("config\microgrid_profile/default_microgrid.json"))
+microgrid_1 =json.load(open("config\experiment1\microgrid\exp1_microgrid.json"))
 MG = Microgrid(houses, microgrid_1)
 Qinit =50
 Qmax = 60
@@ -60,6 +60,7 @@ NN_parameters = defaultdict(dict)
 base ={"batch_size": 1,
         "epochs":150,
         "l2": 1e-5,
+        "l1": 1e-5,
         "loss_func": "F.l1_loss",
         "lr": 0.0001,
         "num_hidden_layers":2,

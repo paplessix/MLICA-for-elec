@@ -137,6 +137,7 @@ def initial_bids_mlca_unif(MicroGrid_instance, number_initial_bids, bidder_names
         # get unique ones if sampled equal bundles
         unique_indices = np.unique(D[:, :-1], return_index=True, axis=0)[1]
         seed_additional_bundle = None if bidder_seeds[i] is None else 10 ** 6 * bidder_seeds[i]
+        print("sampling method uniform bids")
         while len(unique_indices) != number_initial_bids + 1:  # +1, because null bundle was already added above in *
             tmp = np.asarray(MicroGrid_instance.get_uniform_random_bids(bidder_id=key_to_int(bidder),
                                                                            number_of_bids=1,

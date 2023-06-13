@@ -4,7 +4,7 @@ from datetime import datetime
 
 import numpy as np
 from numpyencoder import NumpyEncoder
-
+import matplotlib.pyplot as plt
 from mlca_for_elec.mlca_elec.mlca_economies import MLCA_Economies
 from mlca_for_elec.mlca_elec.mlca_util import key_to_int, timediff_d_h_m_s, plot_efficiency_per_iteration
 
@@ -136,7 +136,10 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
             logging.debug('Current query profile for %s:', bidder)
             for k in range(E.current_query_profile[bidder].shape[0]):
                 logging.debug(E.current_query_profile[bidder][k, :])
+                plt.plot(E.current_query_profile[bidder][k,:], label = f"bidder_{bidder}_query_{k}")
             logging.debug('')
+            plt.show()
+            
 
         # Update Elicited Bids With Current Query Profile and check uniqueness | Line 15-16
         if not E.update_elicited_bids():

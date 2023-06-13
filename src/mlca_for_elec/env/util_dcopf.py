@@ -2,6 +2,7 @@ import logging
 import itertools as iter
 import docplex.mp.model as cpx
 import numpy as np
+from mlca_for_elec.mlca_elec.mlca_util import key_to_int
 
 ####################### 1. Copper plate Constraints ##################################
 
@@ -29,7 +30,7 @@ def _add_MG_specific_constraints_copperplate(self):
     # Add constraints
 
     for t in period:
-        self.Mip.add_constraint(ct = (self.Mip.sum(self.z[(i, 0, t)] for i,house in enumerate(self.MG_instance.households) ) == self.external_import[(t)]  ))
+        self.Mip.add_constraint(ct = (self.Mip.sum(self.z[(i, 0, t)] for i in range(self.N) ) == self.external_import[(t)]  ))
         self.Mip.add_constraint(ct= (self.external_import[(t)]  <= self.MG_instance.grid_connection))
 
 def _add_MG_specific_constraints_copperplate_wdp(self):
@@ -94,10 +95,10 @@ def _add_MG_specific_constraints_dcopf(self):
     for node,t in iter.product(nodes,period):
         if node == 0:
             self.Mip.add_constraint(ct = ((self.Mip.sum(self.flows[(node,node2,t)] for node2 in nodes )
-                                        + self.Mip.sum(self.z[(i, 0, t)] for i,house in enumerate(self.MG_instance.households) if house.node == node) )==  self.external_import[(t)]  ))
+                                        + self.Mip.sum(self.z[(i, 0, t)] for i in range(self.N) if self.MG_instance.households[key_to_int(self.sorted_bidders[i])].node == node) )==  self.external_import[(t)]  ))
         else:
             self.Mip.add_constraint(ct = ((self.Mip.sum(self.flows[(node,node2,t)] for node2 in nodes ) 
-                                        + self.Mip.sum(self.z[(i, 0, t)] for i,house in enumerate(self.MG_instance.households) if house.node == node) )==  0  ))
+                                        + self.Mip.sum(self.z[(i, 0, t)]  for i in range(self.N)  if self.MG_instance.households[key_to_int(self.sorted_bidders[i])].node == node) )==  0  ))
        
     # #3. Capacity constraints
     for node1,node2, t in iter.product(nodes,nodes,period):
