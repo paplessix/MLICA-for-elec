@@ -15,14 +15,14 @@ from pyutilib.services import register_executable, registered_executable
 register_executable(name='glpsol')
 
 class HouseHold():  
-    def __init__(self, param) -> None:
+    def __init__(self, param, horizon = 6 ) -> None:
         self.param = param
         self.ID = self.param["ID"]
         print(self.ID)
         self.node =self.param["grid"]["node"]
         self.data = None
         self.result = None
-        self.horizon = 24
+        self.horizon = horizon
         self.is_build_milp  = None
 
     def load_data(self, generation_path, consumption_path, spot_price_path, fcr_price_path, profile_path_train= None, profile_path_valtest=None, type = int):
@@ -636,7 +636,7 @@ class Microgrid():
         if seed is not None:
             np.random.seed(seed)
         #bids = [l1_ball_sampling(radius=100, dim=self.horizon) for i in range(number_of_bids)]
-        bids = uniform_sampling(number_of_bids, [10 for i in range(self.horizon)])
+        bids = uniform_sampling(number_of_bids, [self.grid_connection for i in range(self.horizon)])
         res = []
         for bid in tqdm(bids):
             val = self.calculate_value(bidder_id,bid)

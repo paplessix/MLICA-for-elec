@@ -325,7 +325,7 @@ def eval_config(seed, SAT_instance, num_train_data, bidder_id, layer_type, batch
     }
 
     model, logs = train_model(train_dataset, config, logs, val_dataset=val_dataset, test_dataset=test_dataset,
-                              log_path=None, eval_test=eval_test, save_datasets=save_datasets, plot = False, validation_at_each_epoch = False)
+                              log_path=None, eval_test=eval_test, save_datasets=save_datasets, plot = plot, validation_at_each_epoch = False)
     if log_path is not None:
         os.makedirs(log_path, exist_ok=True)
         json.dump(logs, open(os.path.join(log_path, '{}.json'.format(seed)), 'w'), indent=4, sort_keys=True,

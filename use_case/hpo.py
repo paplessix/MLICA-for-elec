@@ -22,8 +22,8 @@ def evaluate_network(cfg: dict, seed: int, MicroGrid_instance: str, bidder_id: s
 
 
 
-def objective(trial, MG_instance, num_train_data, bidder_id):
-    model = trial.suggest_categorical("model", ["CALayerReLUProjected"])
+def objective(trial, MG_instance, num_train_data, bidder_id, layer):
+    model = trial.suggest_categorical("model", [layer])
     batch_size = trial.suggest_int("batch_size", 1, 10)
     epochs = trial.suggest_int("epochs", 1, 500)
     l2 = trial.suggest_float("l2", 1e-12, 1e-2, log=True)
@@ -60,14 +60,15 @@ def objective(trial, MG_instance, num_train_data, bidder_id):
 
 if __name__=="__main__":
 
-
+    exp_number =2
     bidder_id = 1
-    num_train_data =100
-    layer  = "CALayerReLUProjected"
+    num_train_data =200
 
-    household_path = "config\experiment1\households"
-    microgrid_path = "config\experiment1\microgrid\exp1_microgrid.json"
-    dataset_path = "config\experiment1\dataset"
+    layer  = "PlainNN"
+
+    household_path = f"config\experiment{exp_number}\households"
+    microgrid_path = f"config\experiment{exp_number}\microgrid\exp{exp_number}_microgrid.json"
+    dataset_path = f"config\experiment{exp_number}\dataset"
     
     # Load MicroGrid
     print("Start loading household profiles")
@@ -98,5 +99,5 @@ if __name__=="__main__":
 
 
 
-    study = optuna.create_study(storage = "sqlite:///db_sqlite.db", study_name = f"Study bidder{bidder_id}_nitems_{num_train_data}_layer_{layer}", load_if_exists=True)  # Create a new study.
-    study.optimize(lambda trial : objective(trial,MG,num_train_data,bidder_id), n_trials=60)  # Invoke optimization of the objective function.e
+    study = optuna.create_study(storage = "sqlite:///db_sqlite.db", study_name = f"Exp_{exp_number}_bidder{bidder_id}_nitems_{num_train_data}_layer_{layer}", load_if_exists=True)  # Create a new study.
+    study.optimize(lambda trial : objective(trial,MG,num_train_data,bidder_id, layer), n_trials=60)  # Invoke optimization of the objective function.e
