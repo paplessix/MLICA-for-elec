@@ -149,7 +149,7 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
         # Calculate efficient allocation given current elicited bids
         if calc_efficiency_per_iteration:
             efficiency = E.calculate_efficiency_per_iteration()
-            if np.isclose(efficiency, 1.0, rtol=1e-4):
+            if np.isclose(efficiency, 1.0, rtol=1e-3):
                 logging.info('EARLY STOPPING - 100% efficiency reached.')
                 break
 

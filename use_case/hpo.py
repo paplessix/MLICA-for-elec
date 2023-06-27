@@ -25,9 +25,9 @@ def evaluate_network(cfg: dict, seed: int, MicroGrid_instance: str, bidder_id: s
 def objective(trial, MG_instance, num_train_data, bidder_id, layer):
     model = trial.suggest_categorical("model", [layer])
     batch_size = trial.suggest_int("batch_size", 1, 10)
-    epochs = trial.suggest_int("epochs", 1, 500)
-    l2 = trial.suggest_float("l2", 1e-12, 1e-2, log=True)
-    l1= trial.suggest_float("l1", 1e-12, 1e-2, log=True)
+    epochs = trial.suggest_int("epochs", 1, 400)
+    l2 = trial.suggest_float("l2", 1e-16, 1e-2, log=True)
+    l1= trial.suggest_float("l1", 1e-16, 1e-2, log=True)
     lr = trial.suggest_float("lr", 1e-8, 1e-3,log = True)
     num_hidden_layers = trial.suggest_int("num_hidden_layers", 1, 4)
     num_neurons = trial.suggest_int("num_neurons", 1, 100)
@@ -60,24 +60,28 @@ def objective(trial, MG_instance, num_train_data, bidder_id, layer):
 
 if __name__=="__main__":
 
-    exp_number =2
+    exp_number =3
     bidder_id = 1
-    num_train_data =200
-
-    layer  = "PlainNN"
+    num_train_data =50
+    layer = "CALayerReLUProjected"
+    # layer  = "PlainNN"
 
     household_path = f"config\experiment{exp_number}\households"
     microgrid_path = f"config\experiment{exp_number}\microgrid\exp{exp_number}_microgrid.json"
     dataset_path = f"config\experiment{exp_number}\dataset"
     
     # Load MicroGrid
+
+    microgrid_1 =json.load(open( microgrid_path))
+
+
     print("Start loading household profiles")
     folder_path = household_path
     houses = []
     for file in os.listdir(folder_path)[:3]:
         if file.endswith(".json"):
             household = json.load(open(folder_path+"/"+ file))
-        house = HouseHold(household)
+        house = HouseHold(household, microgrid_1["horizon"])
 
         generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
         consumption_path = f"data/consumption/Reference-{house.param['consumption']['type']}.csv"
@@ -92,7 +96,7 @@ if __name__=="__main__":
         print(f"Loaded {len(houses)} households")
         print("Start compute social welfare")
         print(houses[0].data['consumption'])
-        microgrid_1 =json.load(open( microgrid_path))
+        
         MG = Microgrid(houses, microgrid_1)
         for house in MG.households:
             print(house.data['consumption'].sum())

@@ -13,7 +13,7 @@ from mlca_for_elec.env.util_dcopf import _add_MG_specific_constraints_copperplat
 
 class MLCA_WDP:
 
-    def __init__(self, bids, MG_instance = None, spot_prices = None ):
+    def __init__(self, bids, MG_instance = None):
 
         self.bids = bids  # list of numpy nxd arrays representing elicited bundle-value pairs from each bidder. n=number of elicited bids, d = number of items + 1(value for that bundle).
         self.N = len(bids)  # number of bidders

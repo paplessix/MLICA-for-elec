@@ -525,7 +525,9 @@ class NN_MIP_TORCH:
         for j in range(0, self.M):
             self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) <= 10000), # TODO: Remove
                                     ctname="FeasabilityCT_x_{}".format(j))
-            
+        for j in range(0, self.M):
+            self.Mip.add_constraint(ct=(self.Mip.sum(self.z[(i, 0, j)] for i in range(0, self.N)) >= 0), # TODO: Remove
+                                    ctname="FeasabilityCT_x_{}".format(j))            
         if self.MG_instance is not None :
             # add MG specific constraints
             self._add_MG_specific_constraints()
@@ -551,9 +553,16 @@ class NN_MIP_TORCH:
             logging.debug('Adding bidder specific constraints')
             for idx, bundle in enumerate(bundles):
                 # logging.debug(bundle)
+                # NEW LINEAR CUT
                 self.Mip.add_constraint(
-                    ct=(self.Mip.sum((self.z[(bidder_id, 0, j)] == int(bundle[j])) for j in range(0, self.M)) <= self.M - 1),
+                    ct=self.Mip.sum(self.z[(bidder_id, 0, j)]*int(2*(bundle[j]-0.5)) for j in range(0, self.M)) <= int(np.sum(bundle)-1),
                     ctname="BidderSpecificCT_Bidder{}_No{}".format(bidder_id, idx))
+                '''
+                # OLD INTEGER CUT
+                self.Mip.add_constraint(
+                    ct=(self.Mip.sum((self.z[(bidder_id, 0, j)] == bundle[j]) for j in range(0, self.M)) <= self.M - 1),
+                    ctname="BidderSpecificCT_Bidder{}_No{}".format(bidder_id, idx))
+                '''
 
     def get_bidder_key_position(self,
                                 bidder_key):

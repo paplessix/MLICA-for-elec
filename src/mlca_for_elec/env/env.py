@@ -15,7 +15,7 @@ from pyutilib.services import register_executable, registered_executable
 register_executable(name='glpsol')
 
 class HouseHold():  
-    def __init__(self, param, horizon = 6 ) -> None:
+    def __init__(self, param, horizon ) -> None:
         self.param = param
         self.ID = self.param["ID"]
         print(self.ID)
@@ -313,7 +313,7 @@ class Microgrid():
         self.grid_nodes = self.param["nodes"]
         self.map_node_to_household = {node: set(house for house in households if house.node ==node) for node in self.grid_nodes}
         self.N_nodes = len(self.grid_nodes)
-        self.horizon = self.households[0].horizon
+        self.horizon = self.param["horizon"]
 
 
         self.data= pd.concat((house.data for house in self.households), axis=1,  keys=[house.ID for house in self.households])
@@ -461,7 +461,7 @@ class Microgrid():
     def run_model(self):
         opt = SolverFactory('glpk')
         opt.options['tmlim'] = 20
-        result_obj = opt.solve(self.model).write()
+        result_obj = opt.solve(self.model)
 
         # extract results
         self.results = pd.concat((house.get_results() for house in self.households), axis=1,  keys=[house.ID for house in self.households])
@@ -635,6 +635,7 @@ class Microgrid():
 
         if seed is not None:
             np.random.seed(seed)
+        
         #bids = [l1_ball_sampling(radius=100, dim=self.horizon) for i in range(number_of_bids)]
         bids = uniform_sampling(number_of_bids, [self.grid_connection for i in range(self.horizon)])
         res = []
@@ -778,11 +779,15 @@ class Microgrid():
 if __name__=="__main__":
     print("Start loading household profiles")
     folder_path = "config\experiment1\households"
+
+    microgrid_1 =json.load(open("config\experiment1\microgrid\exp1_microgrid.json"))
+
+    
     houses = []
-    for file in os.listdir(folder_path)[:3]:
+    for file in os.listdir(folder_path)[:5]:
         if file.endswith(".json"):
             household = json.load(open(folder_path+"/"+ file))
-        house = HouseHold(household)
+        house = HouseHold(household, horizon = microgrid_1["horizon"])
         generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
         consumption_path = f"data/consumption/Reference-{house.param['consumption']['type']}.csv"
         spot_price_path = "data/spot_price/2020.csv"
@@ -794,15 +799,14 @@ if __name__=="__main__":
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
     print([house.ID for house in houses])
-    microgrid_1 =json.load(open("config\experiment1\microgrid\exp1_microgrid.json"))
     MG = Microgrid(houses, microgrid_1)
-    # MG.build_model()
-    # MG.run_model()
-    # MG.get_efficient_allocation()
+    MG.build_model()
+    MG.run_model()
+    MG.get_efficient_allocation()
     # MG.display_results()
-    # MG.get_efficient_allocation_wo_battery()
-    # MG.display_results()
-    MG.households[0].display_planning()
+    MG.get_efficient_allocation_wo_battery()
+    MG.display_results()
+    # MG.households[0].display_planning()
     # MG.display_setup()ex
     # # # MG.display_gridflows()
     # # MG.display_angles()
