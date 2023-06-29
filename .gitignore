@@ -28,6 +28,7 @@ config
 runs
 logs
 model
+results
 
 # Package files
 *.egg

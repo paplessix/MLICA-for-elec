@@ -12,7 +12,7 @@ from mlca_for_elec.mlca_elec.mlca_util import key_to_int, timediff_d_h_m_s, plot
 def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name=None, Qinit=None, Qmax=None, Qround=None,
                    local_scaling_factor=None, NN_parameters=None, MIP_parameters=None, scaler=None,
                    init_bids_and_fitted_scaler=[None, None], return_allocation=False, return_payments=False,
-                   calc_efficiency_per_iteration=False, isLegacy=False, configdict=None, res_path=None):
+                   calc_efficiency_per_iteration=False, isLegacy=False, configdict=None, res_path=None, parallelize_training = False, plot_per_iteration = False):
     start = datetime.now()
     # can also specify input as a dict of an configuration
     if configdict is not None:
@@ -44,7 +44,7 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
     E = MLCA_Economies(SATS_auction_instance=MicroGrid_instance,
                        SATS_auction_instance_seed=SATS_auction_instance_seed,
                        Qinit=Qinit, Qmax=Qmax, Qround=Qround, scaler=scaler,
-                       local_scaling_factor=local_scaling_factor)  # create economy instance
+                       local_scaling_factor=local_scaling_factor, parallelize_training=parallelize_training)  # create economy instance
 
     E.set_NN_parameters(parameters=NN_parameters)  # set NN parameters
     E.set_MIP_parameters(parameters=MIP_parameters)  # set MIP parameters
@@ -134,11 +134,12 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
             E.update_current_query_profile(bidder=bidder, bundle_to_add=q_i)
             logging.debug('')
             logging.debug('Current query profile for %s:', bidder)
-            for k in range(E.current_query_profile[bidder].shape[0]):
-                logging.debug(E.current_query_profile[bidder][k, :])
-                plt.plot(E.current_query_profile[bidder][k,:], label = f"bidder_{bidder}_query_{k}")
+            # for k in range(E.current_query_profile[bidder].shape[0]):
+            #     logging.debug(E.current_query_profile[bidder][k, :])
+            #     plt.plot(E.current_query_profile[bidder][k,:], label = f"bidder_{bidder}_query_{k}")
+            # plt.show()
             logging.debug('')
-            plt.show()
+            
             
 
         # Update Elicited Bids With Current Query Profile and check uniqueness | Line 15-16
@@ -153,6 +154,11 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
                 logging.info('EARLY STOPPING - 100% efficiency reached.')
                 break
 
+        # calculate vcg payments
+        if return_payments: 
+            E.calculate_vcg_payments()
+
+        # Save Results
         # TODO:Eff check/break condition as in mlca_mechanism_ft file
         if res_path is not None:
             json.dump(
@@ -191,7 +197,8 @@ def mlca_mechanism(value_model,SATS_auction_instance_seed=None, SATS_domain_name
     logging.warning('MLCA FINISHED')
 
     # Display Results
-    plot_efficiency_per_iteration(E.efficiency_per_iteration)
+    if plot_per_iteration : 
+        plot_efficiency_per_iteration(E.efficiency_per_iteration)
 
 
 

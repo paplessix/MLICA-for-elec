@@ -21,47 +21,68 @@ def evaluate_network(cfg: dict, seed: int, MicroGrid_instance: str, bidder_id: s
     return eval_config(
         seed=seed, SAT_instance=MicroGrid_instance, bidder_id=bidder_id,
         layer_type=layer_type, batch_size=cfg['batch_size'], num_hidden_layers=cfg['num_hidden_layers'],
-        num_hidden_units=int(max(1, np.round(cfg['num_neurons'] / cfg['num_hidden_layers']))), l2=cfg['l2'],
+        num_hidden_units=int(max(1, np.round(cfg['num_neurons'] / cfg['num_hidden_layers']))), l2=cfg['l2'], l1 =cfg['l1'],
         lr=cfg['lr'], normalize_factor=normalize_factor, optimizer=cfg['optimizer'], num_train_data=num_train_data,
-        eval_test=True, epochs=cfg['epochs'], loss_func=cfg['loss_func'], normalize=normalize, save_datasets=False, log_path="logs", state_dict = cfg["state_dict"])
-
+        eval_test=True, epochs=cfg['epochs'], loss_func=cfg['loss_func'], normalize=normalize, save_datasets=False, log_path="logs", ts = cfg["ts"], state_dict = cfg["state_dict"], plot=True)
 
 
 
 if __name__=="__main__":
     print("Start loading household profiles")
-    folder_path = "config\household_profile\\"
+
+    exp_number = 1
+
+    household_path = f"config\experiment{exp_number}\households"
+    microgrid_path = f"config\experiment{exp_number}\microgrid\exp{exp_number}_microgrid.json"
+    dataset_path = f"config\experiment{exp_number}\dataset"
+
+
     houses = []
-    for file in os.listdir(folder_path)[:3]:
+    folder_path = household_path
+    houses = []
+
+    microgrid_1 =json.load(open( microgrid_path))
+
+
+    for file in os.listdir(folder_path)[:5]:
         if file.endswith(".json"):
             household = json.load(open(folder_path+"/"+ file))
-        house = HouseHold(household)
+        house = HouseHold(household, microgrid_1["horizon"])
 
         generation_path = "data\solar_prod\Timeseries_55.672_12.592_SA2_1kWp_CdTe_14_44deg_-7deg_2020_2020.csv"
         consumption_path = f"data/consumption/Reference-{house.param['consumption']['type']}.csv"
         spot_price_path = "data/spot_price/2020.csv"
         fcr_price_path = "data/fcr_price/random_fcr.csv"
-        house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path)
-        for i in range(225):
+        profile_path_train = dataset_path + f"/dataset_{house.ID}.csv"
+        profile_path_valtest = dataset_path + f"/test_dataset_{house.ID}.csv"
+        house.load_data(generation_path,consumption_path, spot_price_path,fcr_price_path, profile_path_train, profile_path_valtest,type = float)
+        for i in range(1):
             house.next_data()
         houses.append(house)
     print(f"Loaded {len(houses)} households")
     print("Start compute social welfare")
-    print(houses[0].data['consumption'])
-    houses[0].data['consumption'].plot(xlabel="Time", ylabel="Consumption (kWh)")
-    plt.show()
-    microgrid_1 =json.load(open("config\microgrid_profile\default_microgrid.json"))
+    print(list(houses[0].data['consumption'].to_numpy()))
+
     MG = Microgrid(houses, microgrid_1)
+    optimal_allocation = {}
+    for house in MG.households:
+        print(house.data['consumption'].sum())
+        optimal_allocation_tuple = MG.get_efficient_allocation()
+        optimal_allocation[house.ID] = (optimal_allocation_tuple[0][house.ID] , MG.calculate_value(house.ID, optimal_allocation_tuple[0][house.ID]))
+
+        
     # MG.generate_dataset(0)
-    config_dict = {"batch_size": 1,
+    config_dict = {"batch_size": 3,
           "epochs":300,
           "l2": 1e-6,
+          "l1": 1e-10,
           "loss_func": "F.l1_loss",
           "lr": 0.0001,
           "num_hidden_layers":2,
-          "num_neurons": 150,
+          "num_neurons": 90,
           "optimizer": "Adam", 
-          "state_dict" : "model/test.pt"
+          "state_dict" : None,
+          "ts": [1,10]
         }
 
     print('Selected hyperparameters', config_dict)

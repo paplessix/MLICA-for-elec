@@ -377,6 +377,5 @@ def plot_efficiency_per_iteration(efficiency_per_iteration):
     plt.xlabel('Iteration')
     plt.ylabel('Efficiency')
     plt.show()
-    return
 
 

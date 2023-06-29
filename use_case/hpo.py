@@ -17,7 +17,7 @@ def evaluate_network(cfg: dict, seed: int, MicroGrid_instance: str, bidder_id: s
         layer_type=layer_type, batch_size=cfg['batch_size'], num_hidden_layers=cfg['num_hidden_layers'],
         num_hidden_units=int(max(1, np.round(cfg['num_neurons'] / cfg['num_hidden_layers']))), l2=cfg['l2'], l1 = cfg['l1'],
         lr=cfg['lr'], normalize_factor=normalize_factor, optimizer=cfg['optimizer'], num_train_data=num_train_data,
-        eval_test=False, epochs=cfg['epochs'], loss_func=cfg['loss_func'], normalize=normalize, save_datasets=False, log_path="logs", state_dict = cfg["state_dict"])
+        eval_test=True, epochs=cfg['epochs'], loss_func=cfg['loss_func'], normalize=normalize, save_datasets=False, log_path="logs", state_dict = cfg["state_dict"], ts = cfg["ts"])
 
 
 
@@ -43,7 +43,8 @@ def objective(trial, MG_instance, num_train_data, bidder_id, layer):
           "num_hidden_layers":  num_hidden_layers,
           "num_neurons": num_neurons,
           "optimizer": optimizer,
-          "state_dict" : None
+          "state_dict" : None, 
+          "ts":[1,1]
         }
     
     model, logs = evaluate_network(
@@ -53,16 +54,16 @@ def objective(trial, MG_instance, num_train_data, bidder_id, layer):
             normalize_factor=1)
     train_logs = logs['metrics']['train'][config_dict['epochs']]
     val_logs = logs['metrics']['val'][config_dict['epochs']]
-    # test_logs = logs['metrics']['test'][config_dict['epochs']]
+    test_logs = logs['metrics']['test'][config_dict['epochs']]
 
-    return val_logs["mae"] 
+    return test_logs["mae"] 
 
 
 if __name__=="__main__":
 
-    exp_number =3
+    exp_number =1
     bidder_id = 1
-    num_train_data =50
+    num_train_data =75
     layer = "CALayerReLUProjected"
     # layer  = "PlainNN"
 

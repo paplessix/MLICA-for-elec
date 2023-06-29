@@ -44,43 +44,44 @@ def compute_metrics(preds, targets):
 
 class Net(nn.Module):
     def __init__(self, input_dim: int, num_hidden_layers: int, num_units: int, layer_type: str, target_max: float,
-                 ts: int = [10,1]):
+                 ts: int):
         super(Net, self).__init__()
         if layer_type == 'PlainNN':
             fc_layer = torch.nn.Linear
-            self.activation_funcs = [torch.relu for _ in range(num_hidden_layers)]
-            self.output_activation_function = torch.relu
         else:
             fc_layer = eval(layer_type)
-            if type(ts) == float or type(ts) == int:
-                self.ts = [ts] * (num_hidden_layers)
-            else:
-                self.ts = ts
-            self.activation_funcs = [partial(ca_activation_func, t=t) for t in self.ts]
-            self.output_activation_function = torch.nn.Identity()
 
         self._layer_type = layer_type
         self._num_hidden_layers = num_hidden_layers
         self._layer_type = layer_type
         self._target_max = target_max
-
+        self.ts = [ts[0]] * num_hidden_layers
         self.layers = []
-        fc1 = fc_layer(input_dim, num_units)
+        fc1 = fc_layer(input_dim, num_units, use_brelu = True, random_ts = ts )
+
         self.layers.append(fc1)
         for _ in range(num_hidden_layers - 1):
-            self.layers.append(fc_layer(num_units, num_units))
+            self.layers.append(fc_layer(num_units, num_units, use_brelu = True, random_ts = ts))
         self.layers = torch.nn.ModuleList(self.layers)
 
-        self.output_layer = fc_layer(num_units, 1) if layer_type == 'PlainNN' else fc_layer(num_units, 1, bias=False)
+        self.output_layer = fc_layer(num_units, 1, use_brelu=False, random_ts=None) if layer_type == 'PlainNN' else fc_layer(num_units, 1, bias=False, use_brelu=False, random_ts=None)
+
+        if layer_type == 'PlainNN':
+            self.activation_funcs = [torch.relu for _ in range(num_hidden_layers)]
+        else:
+            self.activation_funcs = [partial(ca_activation_func, t=layer.ts) for layer  in self.layers]
+
+
+    
         self.output_activation_function = F.relu if layer_type == 'PlainNN' else torch.nn.Identity()
         self.dataset_info = None
         assert len(self.layers) == len(
             self.activation_funcs), 'Incorrect number of layers and activation functions.'
 
-    def set_activation_functions(self, ts):
-        assert len(self.layers) == len(ts), 'Incorrect number of layers and activation functions.'
-        self.ts = ts
-        self.activation_funcs = [partial(ca_activation_func, t=t) for t in ts]
+    # def set_activation_functions(self, ts):
+    #     assert len(self.layers) == len(ts), 'Incorrect number of layers and activation functions.'
+    #     self.ts = ts
+    #     self.activation_funcs = [partial(ca_activation_func, t=t) for t in ts]
 
     def forward(self, x):
         for layer, activation_func in zip(self.layers, self.activation_funcs):

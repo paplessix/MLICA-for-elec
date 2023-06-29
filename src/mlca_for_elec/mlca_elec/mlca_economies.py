@@ -11,6 +11,9 @@ from functools import partial
 
 import docplex
 import numpy as np
+import torch
+from joblib import Parallel, delayed
+from tqdm import tqdm 
 
 import mlca_for_elec.mlca_elec.mlca_util as util
 
@@ -41,7 +44,8 @@ def merge_dicts(*dict_args):
     return result
 
 
-def eval_bidder_nn(bidder, fitted_scaler, local_scaling_factor, NN_parameters, elicited_bids):
+def eval_bidder_nn(bidder, fitted_scaler, local_scaling_factor, NN_parameters, elicited_bids, num_cpu_per_job):
+    torch.set_num_threads(num_cpu_per_job)
     bids = elicited_bids[bidder]
     logging.info(bidder)
 
@@ -60,7 +64,9 @@ def eval_bidder_nn(bidder, fitted_scaler, local_scaling_factor, NN_parameters, e
 class MLCA_Economies:
 
     def __init__(self, SATS_auction_instance, SATS_auction_instance_seed, Qinit, Qmax, Qround, scaler,
-                 local_scaling_factor):
+                 local_scaling_factor, parallelize_training):
+        
+        self.parallelize_training = parallelize_training
 
         # STATIC ATTRIBUTES
         self.SATS_auction_instance = SATS_auction_instance  # auction instance from SATS: LSVM, GSVM or MRVM generated via PySats.py.
@@ -328,10 +334,23 @@ class MLCA_Economies:
         logging.info('ESTIMATION STEP')
         logging.info('-----------------------------------------------')
 
-        models = merge_dicts(*[
-            partial(eval_bidder_nn, fitted_scaler=self.fitted_scaler, NN_parameters=self.NN_parameters,
-                    elicited_bids=self.elicited_bids, local_scaling_factor=self.local_scaling_factor)(key) for key in
-            self.economies_names[economy_key]])
+        if self.parallelize_training : 
+            m = Parallel(n_jobs=-1)(delayed(
+                partial(eval_bidder_nn,
+                        fitted_scaler=self.fitted_scaler,
+                        NN_parameters=self.NN_parameters,
+                        elicited_bids=self.elicited_bids,
+                        local_scaling_factor=self.local_scaling_factor,
+                        num_cpu_per_job=1
+                        ))(key) for key in self.economies_names[economy_key])
+            models = merge_dicts(*m)
+
+        else : 
+
+            models = merge_dicts(*[
+                partial(eval_bidder_nn, fitted_scaler=self.fitted_scaler, NN_parameters=self.NN_parameters,
+                        elicited_bids=self.elicited_bids, local_scaling_factor=self.local_scaling_factor, num_cpu_per_job=os.cpu_count())(key) for key in
+                self.economies_names[economy_key]])
 
         # Add train metrics
         trained_models = {}
@@ -399,7 +418,7 @@ class MLCA_Economies:
         for attempt in range(1, attempts + 1):
             logging.debug('Initialize MIP')
             X = MLCA_NNMIP(DNNs, L=self.MIP_parameters['bigM'], MG_instance = self.SATS_auction_instance)
-            X = MVNN_MIP_TORCH_NEW(DNNs, L=self.MIP_parameters['bigM'], MG_instance=self.SATS_auction_instance)
+            # X = MVNN_MIP_TORCH_NEW(DNNs, L=self.MIP_parameters['bigM'], MG_instance=self.SATS_auction_instance)
             if not self.MIP_parameters['mip_bounds_tightening']:
                 X.initialize_mip(verbose=False,
                                  bidder_specific_constraints=bidder_specific_constraints,
@@ -563,7 +582,7 @@ class MLCA_Economies:
                 marginal_economy_bidder]  # social welfare of the allocation a^(-i) in this economy
             p2 = sum([self.mlca_allocation[i]['value'] for i in self.economies_names[
                 marginal_economy_bidder]])  # social welfare of mlca allocation without bidder i
-            self.mlca_payments[bidder] = round(p1 - p2, 2)
+            self.mlca_payments[bidder] = round(p1 - p2, 5)
             self.mlca_payments_parts[bidder] = [p1, p2]
             logging.info('Payment %s: %s - %s  =  %s', bidder, p1, p2, self.mlca_payments[bidder])
         self.revenue = sum([self.mlca_payments[i] for i in self.bidder_names])

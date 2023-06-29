@@ -595,7 +595,6 @@ class NN_MIP_TORCH:
                 logging.debug('Tighten bounds with IA for %s', bidder)
                 Wb = self._get_model_weights(bidder)
                 ts = self.Models[bidder].ts
-                print(ts)
                 assert len(Wb) % 2 == 0, 'Currently weights and biases should always be coupled.'
 
                 #######
